@@ -1009,7 +1009,6 @@ struct EquirectangularCameraModel : BaseCameraModel<EquirectangularCameraModel> 
 
     Parameters parameters;
 
-
     inline __device__ auto camera_ray_to_image_point(glm::fvec3 const& cam_ray, float margin_factor) const -> typename Base::ImagePointReturn {
         auto azimuth = std::atan2(cam_ray.x, cam_ray.z);
         auto elevation = std::asin(cam_ray.y / length(cam_ray));
