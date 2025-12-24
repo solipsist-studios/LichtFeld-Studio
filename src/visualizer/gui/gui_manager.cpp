@@ -1727,19 +1727,19 @@ namespace lfs::vis::gui {
         // Check exit confirmation popup
         if (exit_confirmation_popup_ && exit_confirmation_popup_->isOpen())
             return true;
-        
+
         // Check save directory popup
         if (save_directory_popup_ && save_directory_popup_->isOpen())
             return true;
-        
+
         // Check export dialog
         if (window_states_.contains("export_dialog") && window_states_.at("export_dialog"))
             return true;
-        
+
         // Check menu bar dialog windows
         if (!menu_bar_)
             return false;
-        
+
         return menu_bar_->isInputSettingsOpen() ||
                menu_bar_->isAboutWindowOpen() ||
                menu_bar_->isGettingStartedWindowOpen() ||
