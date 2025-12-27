@@ -43,6 +43,7 @@
     "title": "SNELSTARTGIDS",
     "description": "Leer hoe je datasets voorbereidt en aan de slag gaat met LichtFeld Studio:",
     "wiki_section": "WIKI & FAQ",
+    "video_latest": "Nieuwste Tutorial",
     "video_reality_scan": "Reality Scan Dataset",
     "video_colmap": "COLMAP Tutorial",
     "video_lichtfeld": "LichtFeld Tutorial",
@@ -498,7 +499,33 @@
     "save_current_profile": "Huidig Profiel Opslaan",
     "reset_to_default": "Reset naar Standaard",
     "export": "Exporteren...",
-    "import": "Importeren..."
+    "import": "Importeren...",
+    "action": "Actie",
+    "binding": "Toewijzing",
+    "rebind": "Opnieuw toewijzen",
+    "cancel": "Annuleren",
+    "press_key_or_click": "Druk een toets of klik met de muis...",
+    "click_again_double": "Klik nogmaals voor dubbelklik...",
+    "tool_mode": "GEREEDSCHAP MODUS",
+    "select_tool_mode": "Selecteer gereedschap modus om toewijzingen te bekijken/bewerken",
+    "current_bindings": "HUIDIGE TOEWIJZINGEN",
+    "global_bindings_hint": "Globale toewijzingen gelden overal tenzij overschreven",
+    "tool_bindings_hint": "Gereedschap-specifieke toewijzingen overschrijven globale toewijzingen",
+    "section.navigation": "NAVIGATIE",
+    "section.selection": "SELECTIE",
+    "section.brush": "PENSEEL",
+    "section.crop_box": "BIJSNIJVAK",
+    "section.editing": "BEWERKEN",
+    "section.view": "WEERGAVE",
+    "mode.global": "Globaal",
+    "mode.selection": "Selectie Gereedschap",
+    "mode.brush": "Penseel Gereedschap",
+    "mode.translate": "Verplaatsen",
+    "mode.rotate": "Roteren",
+    "mode.scale": "Schalen",
+    "mode.align": "Uitlijn Gereedschap",
+    "mode.crop_box": "Bijsnijvak",
+    "mode.unknown": "Onbekend"
   },
 
   "debug_info": {
@@ -585,7 +612,12 @@
 
   "startup": {
     "supported_by": "Ondersteund door",
-    "click_to_continue": "Klik ergens om door te gaan"
+    "click_to_continue": "Klik ergens om door te gaan",
+    "drop_files_title": "Sleep bestanden hierheen om te beginnen",
+    "drop_files_subtitle": "PLY, SOG, COLMAP dataset of Projectbestand",
+    "drop_files_hint": "Of gebruik Bestand > Dataset Importeren / PLY Importeren",
+    "drop_to_import": "Loslaten om te importeren",
+    "drop_to_import_subtitle": "PLY, SOG, COLMAP dataset of Project"
   },
 
   "axis": {
