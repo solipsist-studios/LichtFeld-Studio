@@ -299,12 +299,12 @@ namespace lfs::io {
                 if (is_distorted) {
                     camdata._radial_distortion = Tensor::from_vector({k1, k2, k3}, {3}, Device::CPU);
                     camdata._tangential_distortion = Tensor::from_vector({p1, p2}, {2}, Device::CPU);
+                } else {
+                    camdata._radial_distortion = Tensor::empty({0}, Device::CPU);
+                    ;
+                    camdata._tangential_distortion = Tensor::empty({0}, Device::CPU);
+                    ;
                 }
-                else {
-                    camdata._radial_distortion = Tensor::empty({0}, Device::CPU);;
-                    camdata._tangential_distortion = Tensor::empty({0}, Device::CPU);;
-                }
-
 
                 camdata._focal_x = fl_x;
                 camdata._focal_y = fl_y;
