@@ -314,8 +314,8 @@ namespace lfs::training {
             const auto& shN_shape = _splat_data->shN().shape();
             const auto n = static_cast<int>(slots_to_fill);
             const auto shN_slice = (shN_shape.rank() == 3)
-                ? shN.slice(0, 0, slots_to_fill).reshape({n, static_cast<int>(shN_shape[1]), static_cast<int>(shN_shape[2])})
-                : shN.slice(0, 0, slots_to_fill).reshape({n, static_cast<int>(shN_shape[1])});
+                                       ? shN.slice(0, 0, slots_to_fill).reshape({n, static_cast<int>(shN_shape[1]), static_cast<int>(shN_shape[2])})
+                                       : shN.slice(0, 0, slots_to_fill).reshape({n, static_cast<int>(shN_shape[1])});
             _splat_data->shN().index_put_(target_indices, shN_slice);
         }
 
