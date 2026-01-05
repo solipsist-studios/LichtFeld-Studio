@@ -1901,6 +1901,16 @@ namespace lfs::vis::gui {
             }
             import_state_.active.store(false);
             import_state_.show_completion.store(true);
+
+            // Focus training panel on successful dataset load
+            if (e.success) {
+                focus_training_panel_ = true;
+            }
+        });
+
+        // Focus training panel when trainer is ready (dataset or checkpoint loaded)
+        internal::TrainerReady::when([this](const auto&) {
+            focus_training_panel_ = true;
         });
     }
 
