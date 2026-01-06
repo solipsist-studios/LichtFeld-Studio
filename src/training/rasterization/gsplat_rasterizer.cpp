@@ -12,13 +12,13 @@
 // Debug macro for CUDA sync points - only active in debug builds
 // Disabled by default for performance (saves ~50% API overhead)
 #ifdef GSPLAT_DEBUG_SYNC_ENABLED
-#define GSPLAT_DEBUG_SYNC(msg)                                            \
-    do {                                                                  \
-        cudaDeviceSynchronize();                                          \
-        auto err = cudaGetLastError();                                    \
-        if (err != cudaSuccess) {                                         \
+#define GSPLAT_DEBUG_SYNC(msg)                                   \
+    do {                                                         \
+        cudaDeviceSynchronize();                                 \
+        auto err = cudaGetLastError();                           \
+        if (err != cudaSuccess) {                                \
             LOG_ERROR("CUDA error {}: {}", msg, cudaGetErrorString(err)); \
-        }                                                                 \
+        }                                                        \
     } while (0)
 #else
 #define GSPLAT_DEBUG_SYNC(msg) ((void)0)
