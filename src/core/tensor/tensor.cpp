@@ -4,7 +4,6 @@
 #include "core/logger.hpp"
 #include "core/path_utils.hpp"
 #include "core/tensor_trace.hpp"
-#include "internal/cuda_stream_context.hpp"
 #include "internal/tensor_broadcast.hpp"
 #include "internal/tensor_impl.hpp"
 #include "internal/tensor_ops.hpp"
@@ -370,7 +369,7 @@ namespace lfs::core {
 
             if (rank >= 2 && rank <= 4) {
                 tensor_ops::launch_strided_copy_immediate(
-                    src_base, result.data_, shape_.dims(), strides_, numel(), dtype_, getCurrentCUDAStream());
+                    src_base, result.data_, shape_.dims(), strides_, numel(), dtype_, nullptr);
             } else {
                 size_t* d_shape = nullptr;
                 size_t* d_strides = nullptr;
@@ -379,7 +378,7 @@ namespace lfs::core {
                 cudaMemcpy(d_shape, shape_.dims().data(), rank * sizeof(size_t), cudaMemcpyHostToDevice);
                 cudaMemcpy(d_strides, strides_.data(), rank * sizeof(size_t), cudaMemcpyHostToDevice);
                 tensor_ops::launch_strided_copy(
-                    src_base, result.data_, d_shape, d_strides, rank, numel(), dtype_, getCurrentCUDAStream());
+                    src_base, result.data_, d_shape, d_strides, rank, numel(), dtype_, nullptr);
                 cudaFree(d_shape);
                 cudaFree(d_strides);
             }
@@ -1159,15 +1158,19 @@ namespace lfs::core {
                 // Use tensor's stream if available for async operation
                 if (dtype_ == DataType::Float32) {
                     tensor_ops::launch_fill_strided<float>(
-                        static_cast<float*>(data_), value, shape_.dims(), strides_, storage_offset_, n, getCurrentCUDAStream());
+                        static_cast<float*>(data_), value, shape_.dims(), strides_, storage_offset_, n, stream_);
                 } else if (dtype_ == DataType::Int32) {
                     int int_val = static_cast<int>(value);
                     tensor_ops::launch_fill_strided<int>(
-                        static_cast<int*>(data_), int_val, shape_.dims(), strides_, storage_offset_, n, getCurrentCUDAStream());
+                        static_cast<int*>(data_), int_val, shape_.dims(), strides_, storage_offset_, n, stream_);
                 } else if (dtype_ == DataType::Bool) {
                     unsigned char bool_val = (value != 0.0f) ? 1 : 0;
                     tensor_ops::launch_fill_strided<unsigned char>(
-                        static_cast<unsigned char*>(data_), bool_val, shape_.dims(), strides_, storage_offset_, n, getCurrentCUDAStream());
+                        static_cast<unsigned char*>(data_), bool_val, shape_.dims(), strides_, storage_offset_, n, stream_);
+                }
+                // Only sync if no stream (maintains original behavior for non-stream tensors)
+                if (!stream_) {
+                    CHECK_CUDA(cudaDeviceSynchronize());
                 }
                 return *this;
             }
@@ -1315,7 +1318,7 @@ namespace lfs::core {
                 const size_t shape_arr[2] = {static_cast<size_t>(size(0)), static_cast<size_t>(size(1))};
                 const size_t strides_arr[2] = {strides_[0], strides_[1]};
                 tensor_ops::launch_strided_scatter_int32_to_float32(
-                    other.data_ptr(), data_ptr(), shape_arr, strides_arr, 2, numel(), getCurrentCUDAStream());
+                    other.data_ptr(), data_ptr(), shape_arr, strides_arr, 2, numel(), nullptr);
                 return *this;
             }
             // Convert then copy
@@ -1352,7 +1355,7 @@ namespace lfs::core {
 
             if (rank >= 2 && rank <= 4) {
                 tensor_ops::launch_strided_scatter_immediate(
-                    other.data_ptr(), data_ptr(), shape_vec, strides_, numel(), dtype_, getCurrentCUDAStream());
+                    other.data_ptr(), data_ptr(), shape_vec, strides_, numel(), dtype_, nullptr);
             } else {
                 size_t* d_shape = nullptr;
                 size_t* d_strides = nullptr;
@@ -1361,7 +1364,7 @@ namespace lfs::core {
                 CHECK_CUDA(cudaMemcpy(d_shape, shape_vec.data(), rank * sizeof(size_t), cudaMemcpyHostToDevice));
                 CHECK_CUDA(cudaMemcpy(d_strides, strides_.data(), rank * sizeof(size_t), cudaMemcpyHostToDevice));
                 tensor_ops::launch_strided_scatter(
-                    other.data_ptr(), data_ptr(), d_shape, d_strides, rank, numel(), dtype_, getCurrentCUDAStream());
+                    other.data_ptr(), data_ptr(), d_shape, d_strides, rank, numel(), dtype_, nullptr);
                 CHECK_CUDA(cudaFree(d_shape));
                 CHECK_CUDA(cudaFree(d_strides));
             }
@@ -1525,7 +1528,7 @@ namespace lfs::core {
 
         if (device_ == Device::CUDA) {
             tensor_ops::launch_cumsum(result.data_ptr(), shape_.dims().data(),
-                                      shape_.rank(), dim, dtype_, getCurrentCUDAStream());
+                                      shape_.rank(), dim, dtype_, nullptr);
             // No sync - returns tensor, not API boundary
         } else {
             if (dtype_ == DataType::Float32) {
@@ -2169,7 +2172,7 @@ namespace lfs::core {
 
         // Use fast GPU check for CUDA tensors (only transfers 1 int back)
         if (device_ == Device::CUDA && dtype_ == DataType::Float32) {
-            return tensor_ops::has_nan_or_inf_gpu(ptr<float>(), numel(), getCurrentCUDAStream());
+            return tensor_ops::has_nan_or_inf_gpu(ptr<float>(), numel(), nullptr);
         }
 
         // CPU fallback
@@ -2186,7 +2189,7 @@ namespace lfs::core {
         // Use fast GPU check for CUDA tensors (only transfers 1 int back)
         // Note: has_nan_or_inf_gpu checks both NaN and Inf
         if (device_ == Device::CUDA && dtype_ == DataType::Float32) {
-            return tensor_ops::has_nan_or_inf_gpu(ptr<float>(), numel(), getCurrentCUDAStream());
+            return tensor_ops::has_nan_or_inf_gpu(ptr<float>(), numel(), nullptr);
         }
 
         // CPU fallback
