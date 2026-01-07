@@ -39,7 +39,7 @@ namespace lichtfeld::Strings {
             inline constexpr const char* GETTING_STARTED = "menu.help.getting_started";
             inline constexpr const char* ABOUT = "menu.help.about";
         } // namespace Help
-    } // namespace Menu
+    }     // namespace Menu
 
     namespace Window {
         inline constexpr const char* GETTING_STARTED = "window.getting_started";
@@ -98,7 +98,7 @@ namespace lichtfeld::Strings {
             inline constexpr const char* ENABLED = "about.interop.enabled";
             inline constexpr const char* DISABLED = "about.interop.disabled";
         } // namespace Interop
-    } // namespace About
+    }     // namespace About
 
     namespace Training {
         namespace Section {
@@ -238,7 +238,7 @@ namespace lichtfeld::Strings {
             inline constexpr const char* ADD = "training.button.add";
             inline constexpr const char* REMOVE = "training.button.remove";
         } // namespace Button
-    } // namespace Training
+    }     // namespace Training
 
     namespace Scene {
         inline constexpr const char* ADD_PLY = "scene.add_ply";
@@ -708,5 +708,21 @@ namespace lichtfeld::Strings {
         inline constexpr const char* Z = "axis.z";
         inline constexpr const char* U = "axis.u";
     } // namespace Axis
+
+    namespace DiskSpaceDialog {
+        inline constexpr const char* TITLE = "disk_space_dialog.title";
+        inline constexpr const char* ERROR_LABEL = "disk_space_dialog.error_label";
+        inline constexpr const char* CHECKPOINT_SAVE_FAILED = "disk_space_dialog.checkpoint_save_failed";
+        inline constexpr const char* EXPORT_FAILED = "disk_space_dialog.export_failed";
+        inline constexpr const char* INSUFFICIENT_SPACE_PREFIX = "disk_space_dialog.insufficient_space_prefix";
+        inline constexpr const char* LOCATION_LABEL = "disk_space_dialog.location_label";
+        inline constexpr const char* REQUIRED_LABEL = "disk_space_dialog.required_label";
+        inline constexpr const char* AVAILABLE_LABEL = "disk_space_dialog.available_label";
+        inline constexpr const char* INSTRUCTION = "disk_space_dialog.instruction";
+        inline constexpr const char* CANCEL = "disk_space_dialog.cancel";
+        inline constexpr const char* CHANGE_LOCATION = "disk_space_dialog.change_location";
+        inline constexpr const char* RETRY = "disk_space_dialog.retry";
+        inline constexpr const char* SELECT_OUTPUT_LOCATION = "disk_space_dialog.select_output_location";
+    } // namespace DiskSpaceDialog
 
 } // namespace lichtfeld::Strings
