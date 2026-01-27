@@ -75,8 +75,10 @@ namespace lfs::training {
                 return std::unexpected("Unsupported PPISP file version: " + std::to_string(header.version));
             }
 
-            if (static_cast<int>(header.num_cameras) != ppisp.num_cameras() ||
-                static_cast<int>(header.num_frames) != ppisp.num_frames()) {
+            const bool is_inference_load = ppisp.num_cameras() == 0 && ppisp.num_frames() == 0;
+            if (!is_inference_load &&
+                (static_cast<int>(header.num_cameras) != ppisp.num_cameras() ||
+                 static_cast<int>(header.num_frames) != ppisp.num_frames())) {
                 return std::unexpected(
                     "PPISP dimension mismatch: file has " +
                     std::to_string(header.num_cameras) + " cameras, " +

@@ -181,7 +181,7 @@ namespace lfs::training {
                                      fc4_b_m_.numel() * 2) *
                                     sizeof(float);
 
-        LOG_INFO("[PPISPControllerPool] Created for {} cameras: {:.1f} MB/camera, {:.1f} MB shared", num_cameras,
+        LOG_INFO("[PPISPControllerPool] Created for %d cameras: %.1f MB/camera, %.1f MB shared", num_cameras,
                  per_cam_bytes / (1024.0 * 1024.0), shared_bytes / (1024.0 * 1024.0));
     }
 
@@ -204,7 +204,7 @@ namespace lfs::training {
         const size_t buf_bytes = (buf_conv1_.numel() + buf_pool_.numel() + buf_conv2_.numel() + buf_conv3_.numel() +
                                   buf_pool2_.numel()) *
                                  sizeof(float);
-        LOG_INFO("[PPISPControllerPool] CNN buffers {}x{}: {:.1f} MB", max_h, max_w, buf_bytes / (1024.0 * 1024.0));
+        LOG_INFO("[PPISPControllerPool] CNN buffers %zux%zu: %.1f MB", max_h, max_w, buf_bytes / (1024.0 * 1024.0));
     }
 
     lfs::core::Tensor PPISPControllerPool::predict(const int camera_idx, const lfs::core::Tensor& rendered_rgb,
