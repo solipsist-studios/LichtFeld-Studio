@@ -644,6 +644,29 @@ namespace lfs::vis {
         return current_split_info_;
     }
 
+    RenderingManager::ContentBounds RenderingManager::getContentBounds(const glm::ivec2& viewport_size) const {
+        ContentBounds bounds{0.0f, 0.0f, static_cast<float>(viewport_size.x), static_cast<float>(viewport_size.y), false};
+
+        if (settings_.split_view_mode == SplitViewMode::GTComparison && gt_context_ && gt_context_->valid()) {
+            const float content_aspect = static_cast<float>(gt_context_->dimensions.x) / gt_context_->dimensions.y;
+            const float viewport_aspect = static_cast<float>(viewport_size.x) / viewport_size.y;
+
+            if (content_aspect > viewport_aspect) {
+                bounds.width = static_cast<float>(viewport_size.x);
+                bounds.height = viewport_size.x / content_aspect;
+                bounds.x = 0.0f;
+                bounds.y = (viewport_size.y - bounds.height) / 2.0f;
+            } else {
+                bounds.height = static_cast<float>(viewport_size.y);
+                bounds.width = viewport_size.y * content_aspect;
+                bounds.x = (viewport_size.x - bounds.width) / 2.0f;
+                bounds.y = 0.0f;
+            }
+            bounds.letterboxed = true;
+        }
+        return bounds;
+    }
+
     lfs::rendering::RenderingEngine* RenderingManager::getRenderingEngine() {
         if (!initialized_) {
             initialize();
@@ -688,7 +711,7 @@ namespace lfs::vis {
             static_cast<int>(viewport_size.x * scale),
             static_cast<int>(viewport_size.y * scale));
 
-        if (settings_.split_view_mode == SplitViewMode::GTComparison && gt_context_) {
+        if (settings_.split_view_mode == SplitViewMode::GTComparison && gt_context_ && gt_context_->valid()) {
             render_size = gt_context_->dimensions;
         }
 
@@ -1343,7 +1366,8 @@ namespace lfs::vis {
                 return std::nullopt;
             }
 
-            viewport_data.size = gt_context_->dimensions;
+            auto letterbox_viewport = viewport_data;
+            letterbox_viewport.size = render_size;
 
             return lfs::rendering::SplitViewRequest{
                 .panels = {{.content_type = lfs::rendering::PanelContentType::Image2D,
@@ -1356,7 +1380,7 @@ namespace lfs::vis {
                             .label = "Rendered",
                             .start_position = settings_.split_position,
                             .end_position = 1.0f}},
-                .viewport = viewport_data,
+                .viewport = letterbox_viewport,
                 .scaling_modifier = settings_.scaling_modifier,
                 .antialiasing = settings_.antialiasing,
                 .mip_filter = settings_.mip_filter,
@@ -1374,7 +1398,9 @@ namespace lfs::vis {
                 .show_labels = true,
                 .left_texcoord_scale = gt_context_->gt_texcoord_scale,
                 .right_texcoord_scale = gt_context_->render_texcoord_scale,
-                .flip_left_y = gt_context_->gt_needs_flip};
+                .flip_left_y = gt_context_->gt_needs_flip,
+                .letterbox = true,
+                .content_size = gt_context_->dimensions};
         }
 
         if (settings_.split_view_mode == SplitViewMode::PLYComparison) {

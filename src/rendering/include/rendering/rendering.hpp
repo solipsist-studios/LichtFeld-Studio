@@ -186,6 +186,9 @@ namespace lfs::rendering {
 
         std::optional<bool> flip_left_y;
         std::optional<bool> flip_right_y;
+
+        bool letterbox = false;
+        glm::ivec2 content_size{0, 0};
     };
 
     enum class GridPlane {

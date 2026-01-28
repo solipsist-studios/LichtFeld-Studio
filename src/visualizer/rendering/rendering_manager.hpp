@@ -290,9 +290,14 @@ namespace lfs::vis {
         float getFocalLengthMm() const;
         void setFocalLength(float focal_mm);
 
-        // Split view control
         void advanceSplitOffset();
         SplitViewInfo getSplitViewInfo() const;
+
+        struct ContentBounds {
+            float x, y, width, height;
+            bool letterboxed = false;
+        };
+        ContentBounds getContentBounds(const glm::ivec2& viewport_size) const;
 
         // Current camera tracking for GT comparison
         void setCurrentCameraId(int cam_id) {
