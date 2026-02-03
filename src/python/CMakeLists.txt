@@ -283,6 +283,13 @@ runpy.run_path(r'${NB_STUBGEN}', run_name='__main__')
             MARKER_FILE ${CMAKE_CURRENT_BINARY_DIR}/typings/lichtfeld/py.typed
         )
     endif()
+
+    add_custom_command(TARGET lichtfeld_stub POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/typings/"
+            "${CMAKE_CURRENT_SOURCE_DIR}/stubs/"
+        COMMENT "Syncing stubs to source tree"
+    )
 endif()
 
 # Copy lfs_plugins Python module to build directory (recursively to include subdirectories)
@@ -335,19 +342,17 @@ else()
     )
 endif()
 
-# Install type stubs for IDE support (if built)
+# Stubs: use generated when available, otherwise committed from source tree
 if(BUILD_PYTHON_STUBS)
-    if(BUILD_PORTABLE)
-        install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/typings/"
-            DESTINATION "${CMAKE_INSTALL_BINDIR}"
-            OPTIONAL  # May not exist if stub generation failed
-        )
-    else()
-        install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/typings/"
-            DESTINATION "${PYTHON_INSTALL_DIR}"
-            OPTIONAL  # May not exist if stub generation failed
-        )
-    endif()
+    set(STUBS_DIR "${CMAKE_CURRENT_BINARY_DIR}/typings")
+else()
+    set(STUBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/stubs")
+endif()
+
+if(BUILD_PORTABLE)
+    install(DIRECTORY "${STUBS_DIR}/" DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+else()
+    install(DIRECTORY "${STUBS_DIR}/" DESTINATION "${PYTHON_INSTALL_DIR}" OPTIONAL)
 endif()
 
 # =============================================================================

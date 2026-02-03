@@ -749,6 +749,7 @@ install(FILES "${CMAKE_SOURCE_DIR}/src/visualizer/gui/assets/lichtfeld-splash-lo
 install(FILES "${CMAKE_SOURCE_DIR}/src/visualizer/gui/assets/lichtfeld-splash-loading-dark.png" DESTINATION "${INSTALL_RESOURCE_DIR}/assets")
 install(FILES "${CMAKE_SOURCE_DIR}/src/visualizer/gui/assets/core11-logo.png" DESTINATION "${INSTALL_RESOURCE_DIR}/assets")
 install(FILES "${CMAKE_SOURCE_DIR}/src/visualizer/gui/assets/core11-logo-dark.png" DESTINATION "${INSTALL_RESOURCE_DIR}/assets")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/src/visualizer/gui/resources/locales" DESTINATION "${INSTALL_RESOURCE_DIR}")
 
 # Plugin development documentation
 if(BUILD_PYTHON_BINDINGS)
