@@ -2,8 +2,8 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
-#include "undistort.hpp"
 #include "core/logger.hpp"
+#include "undistort.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -167,7 +167,7 @@ namespace lfs::core {
                    fy * ((1.0f - fx) * v10 + fx * v11);
         }
 
-        __global__ void __launch_bounds__(BLOCK_DIM * BLOCK_DIM)
+        __global__ void __launch_bounds__(BLOCK_DIM* BLOCK_DIM)
             undistort_image_kernel(
                 const float* __restrict__ src,
                 float* __restrict__ dst,
@@ -198,7 +198,7 @@ namespace lfs::core {
             }
         }
 
-        __global__ void __launch_bounds__(BLOCK_DIM * BLOCK_DIM)
+        __global__ void __launch_bounds__(BLOCK_DIM* BLOCK_DIM)
             undistort_mask_kernel(
                 const float* __restrict__ src,
                 float* __restrict__ dst,
@@ -258,7 +258,7 @@ namespace lfs::core {
                 const float k3 = num_dist > 2 ? dist[2] : 0.0f;
                 const float k4 = num_dist > 3 ? dist[3] : 0.0f;
                 const float theta_d = theta * (1.0f + k1 * theta2 + k2 * theta2 * theta2 +
-                                                k3 * theta2 * theta2 * theta2 + k4 * theta2 * theta2 * theta2 * theta2);
+                                               k3 * theta2 * theta2 * theta2 + k4 * theta2 * theta2 * theta2 * theta2);
                 const float scale = theta_d / r;
                 dx = x * scale;
                 dy = y * scale;
@@ -278,7 +278,7 @@ namespace lfs::core {
                 const float k3 = num_dist > 2 ? dist[2] : 0.0f;
                 const float k4 = num_dist > 3 ? dist[3] : 0.0f;
                 const float theta_d = theta * (1.0f + k1 * theta2 + k2 * theta2 * theta2 +
-                                                k3 * theta2 * theta2 * theta2 + k4 * theta2 * theta2 * theta2 * theta2);
+                                               k3 * theta2 * theta2 * theta2 + k4 * theta2 * theta2 * theta2 * theta2);
                 const float scale = theta_d / r;
                 float xd = x * scale;
                 float yd = y * scale;

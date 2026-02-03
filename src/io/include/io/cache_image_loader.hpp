@@ -16,7 +16,7 @@
 namespace lfs::core {
     class Tensor;
     struct UndistortParams;
-}
+} // namespace lfs::core
 
 namespace lfs::io {
 

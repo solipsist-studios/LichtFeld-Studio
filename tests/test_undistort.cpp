@@ -70,9 +70,9 @@ TEST(UndistortPacking, PinholeRadialOnly) {
 
     EXPECT_FLOAT_EQ(params.distortion[0], -0.1f);
     EXPECT_FLOAT_EQ(params.distortion[1], 0.02f);
-    EXPECT_FLOAT_EQ(params.distortion[2], 0.0f);  // k3 = 0
-    EXPECT_FLOAT_EQ(params.distortion[3], 0.0f);  // p1 = 0
-    EXPECT_FLOAT_EQ(params.distortion[4], 0.0f);  // p2 = 0
+    EXPECT_FLOAT_EQ(params.distortion[2], 0.0f); // k3 = 0
+    EXPECT_FLOAT_EQ(params.distortion[3], 0.0f); // p1 = 0
+    EXPECT_FLOAT_EQ(params.distortion[4], 0.0f); // p2 = 0
 }
 
 TEST(UndistortPacking, PinholeRadialAndTangential) {
@@ -99,11 +99,11 @@ TEST(UndistortPacking, PinholeFullRadialAndTangential) {
         TEST_FX, TEST_FY, TEST_CX, TEST_CY, TEST_W, TEST_H,
         radial, tangential, CameraModelType::PINHOLE);
 
-    EXPECT_FLOAT_EQ(params.distortion[0], -0.1f);    // k1
-    EXPECT_FLOAT_EQ(params.distortion[1], 0.02f);    // k2
-    EXPECT_FLOAT_EQ(params.distortion[2], -0.003f);  // k3
-    EXPECT_FLOAT_EQ(params.distortion[3], 0.001f);   // p1
-    EXPECT_FLOAT_EQ(params.distortion[4], -0.002f);  // p2
+    EXPECT_FLOAT_EQ(params.distortion[0], -0.1f);   // k1
+    EXPECT_FLOAT_EQ(params.distortion[1], 0.02f);   // k2
+    EXPECT_FLOAT_EQ(params.distortion[2], -0.003f); // k3
+    EXPECT_FLOAT_EQ(params.distortion[3], 0.001f);  // p1
+    EXPECT_FLOAT_EQ(params.distortion[4], -0.002f); // p2
     EXPECT_EQ(params.num_distortion, 5);
 }
 

@@ -4,6 +4,7 @@
 
 #include "io/loaders/colmap_loader.hpp"
 #include "core/camera.hpp"
+#include "core/image_io.hpp"
 #include "core/logger.hpp"
 #include "core/point_cloud.hpp"
 #include "formats/colmap.hpp"
@@ -15,7 +16,6 @@
 #include <chrono>
 #include <filesystem>
 #include <format>
-#include "core/image_io.hpp"
 #include <system_error>
 
 namespace lfs::io {

@@ -4,6 +4,7 @@
 
 #include "io/loaders/blender_loader.hpp"
 #include "core/camera.hpp"
+#include "core/image_io.hpp"
 #include "core/logger.hpp"
 #include "core/path_utils.hpp"
 #include "core/point_cloud.hpp"
@@ -15,7 +16,6 @@
 #include <format>
 #include <fstream>
 #include <nlohmann/json.hpp>
-#include "core/image_io.hpp"
 
 namespace lfs::io {
 
