@@ -676,8 +676,11 @@ class UILayout:
     def selectable(self, label: str, selected: bool = False, height: float = 0.0) -> bool:
         """Draw a selectable item, returns True if clicked"""
 
-    def begin_popup_context_item(self, id: str = '') -> bool:
-        """Begin a right-click context popup, returns True if open"""
+    def begin_context_menu(self, id: str = '') -> bool:
+        """Begin a styled right-click context menu"""
+
+    def end_context_menu(self) -> None:
+        """End context menu"""
 
     def begin_popup(self, id: str) -> bool:
         """Begin a popup by id, returns True if open"""

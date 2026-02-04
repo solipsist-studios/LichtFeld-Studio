@@ -86,14 +86,14 @@ class SelectionGroupsPanel:
             if is_active:
                 layout.pop_style_color(2)
 
-            if layout.begin_popup_context_item("##ctx"):
+            if layout.begin_context_menu("##ctx"):
                 if layout.menu_item(_tr("selection_group.unlock") if is_locked else _tr("selection_group.lock")):
                     scene.set_selection_group_locked(group.id, not is_locked)
                 if layout.menu_item(_tr("main_panel.clear")):
                     scene.clear_selection_group(group.id)
                 if layout.menu_item(_tr("common.delete")):
                     scene.remove_selection_group(group.id)
-                layout.end_popup()
+                layout.end_context_menu()
 
             layout.pop_id()
 

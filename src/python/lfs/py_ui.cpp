@@ -1557,9 +1557,20 @@ namespace lfs::python {
         return ImGui::Selectable(label.c_str(), selected, flags, size);
     }
 
-    // Context menus
-    bool PyUILayout::begin_popup_context_item(const std::string& id) {
-        return ImGui::BeginPopupContextItem(id.empty() ? nullptr : id.c_str());
+    bool PyUILayout::begin_context_menu(const std::string& id) {
+        const auto& t = lfs::vis::theme();
+        t.pushContextMenuStyle();
+        const char* str_id = id.empty() ? nullptr : id.c_str();
+        if (!ImGui::BeginPopupContextItem(str_id)) {
+            lfs::vis::Theme::popContextMenuStyle();
+            return false;
+        }
+        return true;
+    }
+
+    void PyUILayout::end_context_menu() {
+        ImGui::EndPopup();
+        lfs::vis::Theme::popContextMenuStyle();
     }
 
     bool PyUILayout::begin_popup(const std::string& id) {
@@ -2416,7 +2427,8 @@ namespace lfs::python {
             .def("selectable", &PyUILayout::selectable, nb::arg("label"),
                  nb::arg("selected") = false, nb::arg("height") = 0.0f, "Draw a selectable item, returns True if clicked")
             // Context menus
-            .def("begin_popup_context_item", &PyUILayout::begin_popup_context_item, nb::arg("id") = "", "Begin a right-click context popup, returns True if open")
+            .def("begin_context_menu", &PyUILayout::begin_context_menu, nb::arg("id") = "", "Begin a styled right-click context menu")
+            .def("end_context_menu", &PyUILayout::end_context_menu, "End context menu")
             .def("begin_popup", &PyUILayout::begin_popup, nb::arg("id"), "Begin a popup by id, returns True if open")
             .def("open_popup", &PyUILayout::open_popup, nb::arg("id"), "Open a popup by id")
             .def("end_popup", &PyUILayout::end_popup, "End the current popup")

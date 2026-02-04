@@ -283,7 +283,8 @@ namespace lfs::python {
         bool selectable(const std::string& label, bool selected = false, float height = 0.0f);
 
         // Context menus
-        bool begin_popup_context_item(const std::string& id = "");
+        bool begin_context_menu(const std::string& id = "");
+        void end_context_menu();
         bool begin_popup(const std::string& id);
         void open_popup(const std::string& id);
         void end_popup();

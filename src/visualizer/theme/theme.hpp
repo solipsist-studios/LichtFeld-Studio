@@ -81,8 +81,8 @@ namespace lfs::vis {
         float header_alpha = 0.4f;
         float header_hover_alpha = 0.6f;
         float header_active_alpha = 0.8f;
-        ImVec2 padding = {12.0f, 8.0f};
-        ImVec2 item_spacing = {8.0f, 6.0f};
+        ImVec2 padding = {14.0f, 10.0f};
+        ImVec2 item_spacing = {10.0f, 8.0f};
     };
 
     struct ThemeViewport {

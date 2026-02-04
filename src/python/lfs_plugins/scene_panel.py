@@ -155,12 +155,12 @@ class ScenePanel(Panel):
                     lf.reparent_node(payload, "")
                 layout.end_drag_drop_target()
 
-            if layout.begin_popup_context_item("##ModelsMenu"):
+            if layout.begin_context_menu("##ModelsMenu"):
                 if not AppState.has_trainer.value:
                     if layout.menu_item(tr("scene.add_group")):
                         lf.add_group("New Group", "")
                     layout.separator()
-                layout.end_popup()
+                layout.end_context_menu()
 
             for node in nodes:
                 if node.parent_id == -1:
@@ -339,7 +339,7 @@ class ScenePanel(Panel):
                 layout.end_drag_drop_target()
 
     def _draw_context_menu(self, layout, scene, node, node_type, is_deletable, can_drag):
-        if not layout.begin_popup_context_item(f"##ctx_{node.name}"):
+        if not layout.begin_context_menu(f"##ctx_{node.name}"):
             return
 
         lf.select_node(node.name)
@@ -347,18 +347,18 @@ class ScenePanel(Panel):
         if node_type == "CAMERA":
             if layout.menu_item(tr("scene.go_to_camera_view")):
                 lf.ui.go_to_camera_view(node.camera_uid)
-            layout.end_popup()
+            layout.end_context_menu()
             return
 
         if node_type == "CAMERA_GROUP":
             layout.label(tr("scene.no_actions"))
-            layout.end_popup()
+            layout.end_context_menu()
             return
 
         if node_type == "DATASET":
             if layout.menu_item(tr("scene.delete")):
                 lf.remove_node(node.name, False)
-            layout.end_popup()
+            layout.end_context_menu()
             return
 
         if node_type == "CROPBOX":
@@ -374,7 +374,7 @@ class ScenePanel(Panel):
             layout.separator()
             if layout.menu_item(tr("scene.delete")):
                 lf.remove_node(node.name, False)
-            layout.end_popup()
+            layout.end_context_menu()
             return
 
         if node_type == "ELLIPSOID":
@@ -390,7 +390,7 @@ class ScenePanel(Panel):
             layout.separator()
             if layout.menu_item(tr("scene.delete")):
                 lf.remove_node(node.name, False)
-            layout.end_popup()
+            layout.end_context_menu()
             return
 
         if node_type == "GROUP" and not AppState.has_trainer.value:
@@ -434,4 +434,4 @@ class ScenePanel(Panel):
             if layout.menu_item(tr("scene.delete")):
                 lf.remove_node(node.name, False)
 
-        layout.end_popup()
+        layout.end_context_menu()
