@@ -12,12 +12,43 @@ find_package(nanobind CONFIG REQUIRED)
 # changes _PyRuntimeState layout, causing ABI mismatch crashes.
 get_target_property(_py_debug_lib Python::Python IMPORTED_LOCATION_DEBUG)
 if(_py_debug_lib AND _py_debug_lib MATCHES "python3\\.([0-9]+)d\\.a$")
+    # Linux: libpython3.XXd.a -> libpython3.XX.a
     string(REGEX REPLACE "debug/lib/libpython3\\.([0-9]+)d\\.a$"
                          "lib/libpython3.\\1.a" _py_release_lib "${_py_debug_lib}")
     if(EXISTS "${_py_release_lib}")
         set_target_properties(Python::Python PROPERTIES
             IMPORTED_LOCATION_DEBUG "${_py_release_lib}")
-        message(STATUS "Python: forced release ABI for debug build")
+        message(STATUS "Python: forced release ABI for debug build (Linux)")
+    endif()
+elseif(_py_debug_lib AND _py_debug_lib MATCHES "python3([0-9]+)_?d\\.lib$")
+    # Windows: python312_d.lib or python312d.lib -> python312.lib
+    string(REGEX REPLACE "python3([0-9]+)_?d\\.lib$"
+                         "python3\\1.lib" _py_release_lib "${_py_debug_lib}")
+    # Also check debug/ -> lib/ path variant
+    string(REPLACE "/debug/lib/" "/lib/" _py_release_lib_alt "${_py_release_lib}")
+    if(EXISTS "${_py_release_lib}")
+        set(_py_win_release "${_py_release_lib}")
+    elseif(EXISTS "${_py_release_lib_alt}")
+        set(_py_win_release "${_py_release_lib_alt}")
+    endif()
+    if(_py_win_release)
+        set_target_properties(Python::Python PROPERTIES
+            IMPORTED_LOCATION_DEBUG "${_py_win_release}")
+        # Override import library for Windows linker
+        get_target_property(_py_debug_implib Python::Python IMPORTED_IMPLIB_DEBUG)
+        if(_py_debug_implib)
+            string(REGEX REPLACE "python3([0-9]+)_?d\\.lib$"
+                                 "python3\\1.lib" _py_release_implib "${_py_debug_implib}")
+            string(REPLACE "/debug/lib/" "/lib/" _py_release_implib_alt "${_py_release_implib}")
+            if(EXISTS "${_py_release_implib}")
+                set_target_properties(Python::Python PROPERTIES
+                    IMPORTED_IMPLIB_DEBUG "${_py_release_implib}")
+            elseif(EXISTS "${_py_release_implib_alt}")
+                set_target_properties(Python::Python PROPERTIES
+                    IMPORTED_IMPLIB_DEBUG "${_py_release_implib_alt}")
+            endif()
+        endif()
+        message(STATUS "Python: forced release ABI for debug build (Windows)")
     endif()
 endif()
 

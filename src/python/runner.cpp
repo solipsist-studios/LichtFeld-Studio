@@ -166,9 +166,7 @@ _add_dll_dirs()
         LOG_INFO("Attempting to import lichtfeld module...");
         PyObject* lf = PyImport_ImportModule("lichtfeld");
         if (!lf) {
-            PyErr_Print();
-            LOG_ERROR("Failed to import lichtfeld for plugin loading");
-            LOG_ERROR("Check that lichtfeld.pyd is in sys.path and all DLL dependencies are available");
+            LOG_ERROR("Failed to import lichtfeld: {}", extract_python_error());
             return;
         }
         LOG_INFO("lichtfeld module imported successfully");

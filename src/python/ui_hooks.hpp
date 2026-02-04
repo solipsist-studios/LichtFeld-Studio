@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "python_runtime.hpp"
+
 namespace lfs::python {
 
     enum class HookPosition {
@@ -52,15 +54,5 @@ namespace lfs::python {
 
     // Get list of registered hook points (for debugging/introspection)
     std::vector<std::string> get_registered_hook_points();
-
-    // Python hook invoker (C-style pointer for DLL boundary safety)
-    using PythonHookInvoker = void (*)(const char* panel, const char* section, bool prepend);
-    using PythonHookChecker = bool (*)(const char* panel, const char* section);
-
-    void set_python_hook_invoker(PythonHookInvoker invoker);
-    void set_python_hook_checker(PythonHookChecker checker);
-    void clear_python_hook_invoker();
-    void invoke_python_hooks(const std::string& panel, const std::string& section, bool prepend);
-    bool has_python_hooks(const std::string& panel, const std::string& section);
 
 } // namespace lfs::python
