@@ -653,8 +653,10 @@ NB_MODULE(lichtfeld, m) {
            const std::string& output_path, const std::string& init_path) {
             nb::gil_scoped_release release;
             lfs::core::events::cmd::LoadFile{
-                .path = path, .is_dataset = is_dataset,
-                .output_path = output_path, .init_path = init_path}
+                .path = path,
+                .is_dataset = is_dataset,
+                .output_path = output_path,
+                .init_path = init_path}
                 .emit();
         },
         nb::arg("path"), nb::arg("is_dataset") = false,
