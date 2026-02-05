@@ -5,6 +5,7 @@
 #include "python_runtime.hpp"
 #include "core/modal_event.hpp"
 #include "core/operator_callbacks.hpp"
+#include "gil.hpp"
 
 #include <atomic>
 #include <cassert>
@@ -549,16 +550,17 @@ namespace lfs::python {
             return;
 
         assert(Py_IsInitialized());
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
         set_scene_for_python(scene);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        g_bridge.draw_panels(space);
-        PyGILState_Release(gil);
+        {
+            const GilAcquire gil;
+            g_bridge.draw_panels(space);
+        }
         set_scene_for_python(nullptr);
     }
 
@@ -569,12 +571,10 @@ namespace lfs::python {
         if (!g_bridge.has_panels)
             return false;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return false;
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = g_bridge.has_panels(space);
-        PyGILState_Release(gil);
-        return result;
+        const GilAcquire gil;
+        return g_bridge.has_panels(space);
     }
 
     std::vector<std::string> get_python_panel_names(PanelSpace space) {
@@ -584,10 +584,10 @@ namespace lfs::python {
         if (!g_bridge.get_panel_names)
             return {};
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return {};
-        const PyGILState_STATE gil = PyGILState_Ensure();
 
+        const GilAcquire gil;
         std::vector<std::string> result;
         g_bridge.get_panel_names(
             space,
@@ -596,7 +596,6 @@ namespace lfs::python {
             },
             &result);
 
-        PyGILState_Release(gil);
         return result;
     }
 
@@ -604,16 +603,17 @@ namespace lfs::python {
         if (!g_bridge.draw_single_panel)
             return;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
         set_scene_for_python(scene);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        g_bridge.draw_single_panel(name.c_str());
-        PyGILState_Release(gil);
+        {
+            const GilAcquire gil;
+            g_bridge.draw_single_panel(name.c_str());
+        }
         set_scene_for_python(nullptr);
     }
 
@@ -624,12 +624,10 @@ namespace lfs::python {
         if (!g_bridge.has_main_panel_tabs)
             return false;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return false;
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = g_bridge.has_main_panel_tabs();
-        PyGILState_Release(gil);
-        return result;
+        const GilAcquire gil;
+        return g_bridge.has_main_panel_tabs();
     }
 
     std::vector<MainPanelTabInfo> get_main_panel_tabs() {
@@ -639,10 +637,10 @@ namespace lfs::python {
         if (!g_bridge.get_main_panel_tabs)
             return {};
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return {};
-        const PyGILState_STATE gil = PyGILState_Ensure();
 
+        const GilAcquire gil;
         std::vector<MainPanelTabInfo> result;
         g_bridge.get_main_panel_tabs(
             [](const char* idname, const char* label, int order, bool enabled, void* ctx) {
@@ -651,7 +649,6 @@ namespace lfs::python {
             },
             &result);
 
-        PyGILState_Release(gil);
         return result;
     }
 
@@ -659,16 +656,17 @@ namespace lfs::python {
         if (!g_bridge.draw_main_panel_tab)
             return;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
         set_scene_for_python(scene);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        g_bridge.draw_main_panel_tab(idname.c_str());
-        PyGILState_Release(gil);
+        {
+            const GilAcquire gil;
+            g_bridge.draw_main_panel_tab(idname.c_str());
+        }
         set_scene_for_python(nullptr);
     }
 
@@ -678,15 +676,14 @@ namespace lfs::python {
 #ifndef NDEBUG
         assert(Py_IsInitialized() && "Python not initialized before draw_python_menu_items");
 #endif
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
-        const PyGILState_STATE gil = PyGILState_Ensure();
+        const GilAcquire gil;
         g_bridge.draw_menus(location);
-        PyGILState_Release(gil);
     }
 
     bool has_python_menu_items(MenuLocation location) {
@@ -696,12 +693,10 @@ namespace lfs::python {
         if (!g_bridge.has_menus)
             return false;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return false;
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = g_bridge.has_menus(location);
-        PyGILState_Release(gil);
-        return result;
+        const GilAcquire gil;
+        return g_bridge.has_menus(location);
     }
 
     bool has_menu_bar_entries() {
@@ -711,12 +706,10 @@ namespace lfs::python {
         if (!g_bridge.has_menu_bar_entries)
             return false;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return false;
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = g_bridge.has_menu_bar_entries();
-        PyGILState_Release(gil);
-        return result;
+        const GilAcquire gil;
+        return g_bridge.has_menu_bar_entries();
     }
 
     std::vector<MenuBarEntry> get_menu_bar_entries() {
@@ -726,10 +719,10 @@ namespace lfs::python {
         if (!g_bridge.get_menu_bar_entries)
             return {};
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return {};
-        const PyGILState_STATE gil = PyGILState_Ensure();
 
+        const GilAcquire gil;
         std::vector<MenuBarEntry> result;
         g_bridge.get_menu_bar_entries(
             [](const char* idname, const char* label, int order, void* ctx) {
@@ -738,7 +731,6 @@ namespace lfs::python {
             },
             &result);
 
-        PyGILState_Release(gil);
         return result;
     }
 
@@ -746,15 +738,14 @@ namespace lfs::python {
         if (!g_bridge.draw_menu_bar_entry)
             return;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
-        const PyGILState_STATE gil = PyGILState_Ensure();
+        const GilAcquire gil;
         g_bridge.draw_menu_bar_entry(idname.c_str());
-        PyGILState_Release(gil);
     }
 
     void draw_python_modals(lfs::vis::Scene* scene) {
@@ -763,16 +754,17 @@ namespace lfs::python {
 #ifndef NDEBUG
         assert(Py_IsInitialized() && "Python not initialized before draw_python_modals");
 #endif
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
         set_scene_for_python(scene);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        g_bridge.draw_modals();
-        PyGILState_Release(gil);
+        {
+            const GilAcquire gil;
+            g_bridge.draw_modals();
+        }
         set_scene_for_python(nullptr);
     }
 
@@ -780,12 +772,10 @@ namespace lfs::python {
         if (!g_bridge.has_modals)
             return false;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return false;
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = g_bridge.has_modals();
-        PyGILState_Release(gil);
-        return result;
+        const GilAcquire gil;
+        return g_bridge.has_modals();
     }
 
     void set_popup_draw_callback(DrawPopupsCallback cb) { g_popup_draw_callback = cb; }
@@ -795,16 +785,17 @@ namespace lfs::python {
             return;
 
         assert(Py_IsInitialized());
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return;
 
         if (g_bridge.prepare_ui)
             g_bridge.prepare_ui();
 
         set_scene_for_python(scene);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        g_popup_draw_callback();
-        PyGILState_Release(gil);
+        {
+            const GilAcquire gil;
+            g_popup_draw_callback();
+        }
         set_scene_for_python(nullptr);
     }
 
@@ -828,51 +819,60 @@ namespace lfs::python {
         if (!g_bridge.has_toolbar)
             return false;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil())
             return false;
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = g_bridge.has_toolbar();
-        PyGILState_Release(gil);
-        return result;
+        const GilAcquire gil;
+        return g_bridge.has_toolbar();
     }
 
     void cancel_active_operator() {
         static std::atomic<bool> in_cancel{false};
 
-        if (in_cancel.load())
+        bool expected = false;
+        if (!in_cancel.compare_exchange_strong(expected, true))
             return;
 
         auto* callbacks = g_operator_callbacks.load();
-        if (!callbacks || !callbacks->hasCancelOperatorCallback())
+        if (!callbacks || !callbacks->hasCancelOperatorCallback()) {
+            in_cancel.store(false);
             return;
+        }
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil()) {
+            in_cancel.store(false);
             return;
+        }
 
-        in_cancel.store(true);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        callbacks->cancelOperator();
-        PyGILState_Release(gil);
+        {
+            const GilAcquire gil;
+            callbacks->cancelOperator();
+        }
         in_cancel.store(false);
     }
 
     bool invoke_operator(const std::string& operator_id) {
         static std::atomic<bool> in_invoke{false};
 
-        if (in_invoke.load())
+        bool expected = false;
+        if (!in_invoke.compare_exchange_strong(expected, true))
             return false;
 
         auto* callbacks = g_operator_callbacks.load();
-        if (!callbacks || !callbacks->hasInvokeOperatorCallback())
+        if (!callbacks || !callbacks->hasInvokeOperatorCallback()) {
+            in_invoke.store(false);
             return false;
+        }
 
-        if (!Py_IsInitialized() || !is_gil_state_ready())
+        if (!can_acquire_gil()) {
+            in_invoke.store(false);
             return false;
+        }
 
-        in_invoke.store(true);
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool result = callbacks->invokeOperator(operator_id.c_str());
-        PyGILState_Release(gil);
+        bool result;
+        {
+            const GilAcquire gil;
+            result = callbacks->invokeOperator(operator_id.c_str());
+        }
         in_invoke.store(false);
         return result;
     }
@@ -901,13 +901,10 @@ namespace lfs::python {
         core_evt.scroll_x = event.scroll_x;
         core_evt.scroll_y = event.scroll_y;
 
-        if (!Py_IsInitialized() || !is_gil_state_ready()) {
+        if (!can_acquire_gil())
             return false;
-        }
-        const PyGILState_STATE gil = PyGILState_Ensure();
-        const bool consumed = callbacks->dispatchModalEvent(core_evt);
-        PyGILState_Release(gil);
-        return consumed;
+        const GilAcquire gil;
+        return callbacks->dispatchModalEvent(core_evt);
     }
 
     void set_viewport_bounds(float x, float y, float w, float h) {
