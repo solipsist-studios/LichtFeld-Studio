@@ -12,7 +12,7 @@
  */
 
 #ifdef WIN32
-#define NOMINMAX 
+#define NOMINMAX
 #endif
 #include <algorithm>
 #include <archive.h>

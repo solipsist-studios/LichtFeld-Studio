@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
 #ifdef WIN32
-#define NOMINMAX 
+#define NOMINMAX
 #endif
 #include "python/package_manager.hpp"
 #include "python/uv_runner.hpp"
