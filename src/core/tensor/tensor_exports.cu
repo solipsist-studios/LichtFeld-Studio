@@ -58,15 +58,15 @@ namespace lfs::core::tensor_ops {
     template LFS_CORE_API void launch_unary_op_generic<float, uint8_t, Op>(const float*, uint8_t*, size_t, Op,     \
                                                                            cudaStream_t);
 
-#define EXPORT_BINARY_SAME(Op)                                                                                            \
-    template LFS_CORE_API void launch_binary_op_generic<float, float, Op>(const float*, const float*, float*, size_t, Op, \
-                                                                          cudaStream_t);                                  \
-    template LFS_CORE_API void launch_binary_op_generic<int, int, Op>(const int*, const int*, int*, size_t, Op,           \
-                                                                      cudaStream_t);                                      \
-    template LFS_CORE_API void launch_binary_op_generic<__half, __half, Op>(const __half*, const __half*, __half*, size_t, Op, \
-                                                                            cudaStream_t);                                  \
+#define EXPORT_BINARY_SAME(Op)                                                                                                      \
+    template LFS_CORE_API void launch_binary_op_generic<float, float, Op>(const float*, const float*, float*, size_t, Op,           \
+                                                                          cudaStream_t);                                            \
+    template LFS_CORE_API void launch_binary_op_generic<int, int, Op>(const int*, const int*, int*, size_t, Op,                     \
+                                                                      cudaStream_t);                                                \
+    template LFS_CORE_API void launch_binary_op_generic<__half, __half, Op>(const __half*, const __half*, __half*, size_t, Op,      \
+                                                                            cudaStream_t);                                          \
     template LFS_CORE_API void launch_binary_op_generic<int64_t, int64_t, Op>(const int64_t*, const int64_t*, int64_t*, size_t, Op, \
-                                                                              cudaStream_t);                                  \
+                                                                              cudaStream_t);                                        \
     template LFS_CORE_API void launch_binary_op_generic<uint8_t, uint8_t, Op>(const uint8_t*, const uint8_t*, uint8_t*, size_t, Op, \
                                                                               cudaStream_t);
 
