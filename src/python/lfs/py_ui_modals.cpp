@@ -68,6 +68,22 @@ namespace lfs::python {
         modals_.push_back(std::move(modal));
     }
 
+    void PyModalRegistry::show_confirm(const std::string& title, const std::string& message,
+                                       const std::vector<std::string>& buttons,
+                                       std::function<void(const std::string&)> callback) {
+        std::lock_guard lock(mutex_);
+        PyModalDialog modal;
+        modal.id = "modal_" + std::to_string(next_id_++);
+        modal.title = title;
+        modal.message = message;
+        modal.buttons = buttons.empty() ? std::vector<std::string>{"OK", "Cancel"} : buttons;
+        modal.cpp_callback = std::move(callback);
+        modal.type = ModalDialogType::Confirm;
+        modal.is_open = true;
+        modal.needs_open = true;
+        modals_.push_back(std::move(modal));
+    }
+
     void PyModalRegistry::show_input(const std::string& title, const std::string& message,
                                      const std::string& default_value, nb::object callback) {
         std::lock_guard lock(mutex_);
@@ -127,7 +143,7 @@ namespace lfs::python {
         const float total_btns_width =
             btn_w * static_cast<float>(modal.buttons.size()) +
             im_style.ItemSpacing.x * static_cast<float>(modal.buttons.size() - 1);
-        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - total_btns_width +
+        ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - total_btns_width) * 0.5f +
                              im_style.WindowPadding.x);
 
         for (size_t i = 0; i < modal.buttons.size(); ++i) {
@@ -140,12 +156,16 @@ namespace lfs::python {
             }
         }
 
-        if (!clicked_button.empty() && modal.callback.is_valid() && !modal.callback.is_none()) {
-            nb::gil_scoped_acquire gil;
-            try {
-                modal.callback(clicked_button);
-            } catch (const std::exception& e) {
-                LOG_ERROR("Modal callback error: {}", e.what());
+        if (!clicked_button.empty()) {
+            if (modal.cpp_callback) {
+                modal.cpp_callback(clicked_button);
+            } else if (modal.callback.is_valid() && !modal.callback.is_none()) {
+                nb::gil_scoped_acquire gil;
+                try {
+                    modal.callback(clicked_button);
+                } catch (const std::exception& e) {
+                    LOG_ERROR("Modal callback error: {}", e.what());
+                }
             }
         }
     }
@@ -182,7 +202,7 @@ namespace lfs::python {
 
         const auto& im_style = ImGui::GetStyle();
         const float total_btns_width = btn_w * 2.0f + im_style.ItemSpacing.x;
-        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - total_btns_width +
+        ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - total_btns_width) * 0.5f +
                              im_style.WindowPadding.x);
 
         if (ColoredButton("OK", ButtonStyle::Primary, ImVec2(btn_w, 0))) {

@@ -143,7 +143,8 @@ namespace lfs::python {
         bool collapsing_header(const std::string& label, bool default_open = false);
         bool tree_node(const std::string& label);
         void tree_pop();
-        void progress_bar(float fraction, const std::string& overlay = "", float width = 0.0f);
+        void progress_bar(float fraction, const std::string& overlay = "", float width = 0.0f,
+                          float height = 0.0f);
         void text_colored(const std::string& text, std::tuple<float, float, float, float> color);
         void text_wrapped(const std::string& text);
 
@@ -472,7 +473,8 @@ namespace lfs::python {
         void end_drag_drop_target();
 
         // Misc
-        void progress_bar(float fraction, const std::string& overlay = "", float width = 0.0f);
+        void progress_bar(float fraction, const std::string& overlay = "", float width = 0.0f,
+                          float height = 0.0f);
         void set_tooltip(const std::string& text);
         bool is_item_hovered();
         bool is_item_clicked(int button = 0);
@@ -830,6 +832,7 @@ namespace lfs::python {
         std::string message;
         std::vector<std::string> buttons;
         nb::object callback;
+        std::function<void(const std::string&)> cpp_callback;
         ModalDialogType type;
         MessageStyle style = MessageStyle::Info;
         std::string input_value;
@@ -845,6 +848,9 @@ namespace lfs::python {
         // Show dialogs
         void show_confirm(const std::string& title, const std::string& message,
                           const std::vector<std::string>& buttons, nb::object callback);
+        void show_confirm(const std::string& title, const std::string& message,
+                          const std::vector<std::string>& buttons,
+                          std::function<void(const std::string&)> callback);
         void show_input(const std::string& title, const std::string& message,
                         const std::string& default_value, nb::object callback);
         void show_message(const std::string& title, const std::string& message,
