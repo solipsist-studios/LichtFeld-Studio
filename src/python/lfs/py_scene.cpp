@@ -770,22 +770,16 @@ Returns:
             .def("get_node_bounds", &PyScene::get_node_bounds, nb::arg("id"), "Get axis-aligned bounding box as ((min_x, min_y, min_z), (max_x, max_y, max_z))")
             .def("get_node_bounds_center", &PyScene::get_node_bounds_center, nb::arg("id"), "Get center of the node bounding box as (x, y, z)")
             // Bounds (by name)
-            .def(
-                "get_node_bounds", [](PyScene& self, const std::string& name) {
+            .def("get_node_bounds", [](PyScene& self, const std::string& name) {
                     auto node = self.get_node(name);
                     if (!node)
                         return decltype(self.get_node_bounds(0)){std::nullopt};
-                    return self.get_node_bounds(node->id());
-                },
-                nb::arg("name"), "Get axis-aligned bounding box by node name")
-            .def(
-                "get_node_bounds_center", [](PyScene& self, const std::string& name) {
+                    return self.get_node_bounds(node->id()); }, nb::arg("name"), "Get axis-aligned bounding box by node name")
+            .def("get_node_bounds_center", [](PyScene& self, const std::string& name) {
                     auto node = self.get_node(name);
                     if (!node)
                         throw std::runtime_error("Node not found: " + name);
-                    return self.get_node_bounds_center(node->id());
-                },
-                nb::arg("name"), "Get center of the node bounding box by name")
+                    return self.get_node_bounds_center(node->id()); }, nb::arg("name"), "Get center of the node bounding box by name")
             // CropBox
             .def("get_cropbox_for_splat", &PyScene::get_cropbox_for_splat, nb::arg("splat_id"), "Get the crop box node ID associated with a splat (-1 if none)")
             .def("get_or_create_cropbox_for_splat", &PyScene::get_or_create_cropbox_for_splat, nb::arg("splat_id"), "Get or create a crop box for a splat, returns cropbox node ID")
