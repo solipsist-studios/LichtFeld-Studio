@@ -5,11 +5,10 @@
 #pragma once
 
 #include "core/animatable_property.hpp"
+#include "core/camera.hpp"
 #include "core/export.hpp"
 #include "core/splat_data.hpp"
 #include "core/tensor.hpp"
-#include "training/components/ppisp.hpp"
-#include "training/components/ppisp_controller_pool.hpp"
 #include <atomic>
 #include <cassert>
 #include <glm/glm.hpp>
@@ -20,17 +19,7 @@
 #include <utility>
 #include <vector>
 
-// Forward declarations
-namespace lfs::training {
-    class CameraDataset;
-} // namespace lfs::training
 namespace lfs::core {
-    struct PointCloud;
-    class Camera;
-    enum class CameraModelType : int;
-} // namespace lfs::core
-
-namespace lfs::vis {
 
     // Node identifier (-1 = invalid/root)
     using NodeId = int32_t;
@@ -84,7 +73,7 @@ namespace lfs::vis {
 
     // Scene graph node with Observable properties
     // Changes to observable properties automatically invalidate the scene cache
-    class SceneNode {
+    class LFS_CORE_API SceneNode {
     public:
         SceneNode() = default;
         explicit SceneNode(Scene* scene);
@@ -110,6 +99,7 @@ namespace lfs::vis {
         // Camera data (for CAMERA nodes) - node owns the Camera object directly
         std::shared_ptr<lfs::core::Camera> camera;
         int camera_uid = -1; // Camera unique identifier (for GoToCamView)
+        bool training_enabled = true;
 
         // Image data (for IMAGE and CAMERA nodes) - just the filename, not loaded
         std::string image_path; // Path to image file
@@ -126,8 +116,6 @@ namespace lfs::vis {
         lfs::core::prop::AnimatableProperty<bool> visible{true};
         lfs::core::prop::AnimatableProperty<bool> locked{false};
 
-        bool training_enabled = true;
-
         // Legacy accessor
         [[nodiscard]] const glm::mat4& transform() const { return local_transform.get(); }
 
@@ -135,7 +123,7 @@ namespace lfs::vis {
         Scene* scene_ = nullptr;
     };
 
-    class LFS_VIS_API Scene {
+    class LFS_CORE_API Scene {
     public:
         // Alias for backwards compatibility
         using Node = SceneNode;
@@ -304,30 +292,15 @@ namespace lfs::vis {
 
         [[nodiscard]] bool hasTrainingData() const;
 
-        // ========== Appearance Model (PPISP) ==========
-        // For standalone viewing of trained models with appearance correction
-
-        void setAppearanceModel(std::unique_ptr<lfs::training::PPISP> ppisp,
-                                std::unique_ptr<lfs::training::PPISPControllerPool> controller_pool = nullptr);
-        void clearAppearanceModel();
-
-        [[nodiscard]] lfs::training::PPISP* getAppearancePPISP() { return appearance_ppisp_.get(); }
-        [[nodiscard]] const lfs::training::PPISP* getAppearancePPISP() const { return appearance_ppisp_.get(); }
-        [[nodiscard]] lfs::training::PPISPControllerPool* getAppearanceControllerPool() {
-            return appearance_controller_pool_.get();
-        }
-        [[nodiscard]] const lfs::training::PPISPControllerPool* getAppearanceControllerPool() const {
-            return appearance_controller_pool_.get();
-        }
-        [[nodiscard]] bool hasAppearanceController() const { return appearance_controller_pool_ != nullptr; }
-        [[nodiscard]] bool hasAppearanceModel() const { return appearance_ppisp_ != nullptr; }
-
         // Camera access (iterates CAMERA nodes)
         [[nodiscard]] std::shared_ptr<const lfs::core::Camera> getCameraByUid(int uid) const;
         [[nodiscard]] std::vector<std::shared_ptr<lfs::core::Camera>> getAllCameras() const;
         [[nodiscard]] std::vector<std::shared_ptr<lfs::core::Camera>> getActiveCameras() const;
         [[nodiscard]] size_t getActiveCameraCount() const;
         void setCameraTrainingEnabled(const std::string& name, bool enabled);
+
+        // Get UIDs of cameras with training disabled (for frustum rendering dimming)
+        [[nodiscard]] std::unordered_set<int> getTrainingDisabledCameraUids() const;
 
         // Get the primary training model node (for Trainer to operate on)
         // Returns nullptr if no training model exists
@@ -355,9 +328,6 @@ namespace lfs::vis {
         // Get visible cameras (for frustum rendering)
         // Returns Camera objects from visible CAMERA nodes
         [[nodiscard]] std::vector<std::shared_ptr<const lfs::core::Camera>> getVisibleCameras() const;
-
-        // Get UIDs of cameras with training disabled (for frustum rendering dimming)
-        [[nodiscard]] std::unordered_set<int> getTrainingDisabledCameraUids() const;
 
         // Mark scene data as changed (e.g., after modifying a node's deleted mask)
         // Also called by SceneNode Observable properties when they change
@@ -424,10 +394,6 @@ namespace lfs::vis {
         lfs::core::Tensor scene_center_;
         bool images_have_alpha_ = false;
         std::string training_model_node_;
-
-        // Standalone appearance model (for viewing without training)
-        std::unique_ptr<lfs::training::PPISP> appearance_ppisp_;
-        std::unique_ptr<lfs::training::PPISPControllerPool> appearance_controller_pool_;
     };
 
-} // namespace lfs::vis
+} // namespace lfs::core

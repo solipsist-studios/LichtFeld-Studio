@@ -6,8 +6,8 @@
 #include <thread>
 #include <vector>
 
+#include "core/scene.hpp"
 #include "python/python_runtime.hpp"
-#include "visualizer/scene/scene.hpp"
 
 namespace lfs::python {
 
@@ -21,7 +21,7 @@ namespace lfs::python {
             set_application_scene(nullptr);
         }
 
-        vis::Scene dummy_scene_;
+        core::Scene dummy_scene_;
     };
 
     TEST_F(SceneValidityTest, GenerationNonNegative) {

@@ -7,12 +7,14 @@
 #include "core/events.hpp"
 #include "core/export.hpp"
 #include "core/parameters.hpp"
+#include "core/scene.hpp"
 #include "core/services.hpp"
 #include "core/splat_data_mirror.hpp"
 #include "geometry/bounding_box.hpp"
 #include "io/loader.hpp"
-#include "scene/scene.hpp"
 #include "scene/scene_render_state.hpp"
+#include "training/components/ppisp.hpp"
+#include "training/components/ppisp_controller_pool.hpp"
 #include <filesystem>
 #include <mutex>
 #include <set>
@@ -84,8 +86,8 @@ namespace lfs::vis {
         }
 
         // Scene access
-        Scene& getScene() { return scene_; }
-        const Scene& getScene() const { return scene_; }
+        core::Scene& getScene() { return scene_; }
+        const core::Scene& getScene() const { return scene_; }
 
         // Service accessors (via service locator)
         TrainerManager* getTrainerManager() { return services().trainerOrNull(); }
@@ -110,7 +112,7 @@ namespace lfs::vis {
         [[nodiscard]] std::string getSelectedNodeName() const;
         [[nodiscard]] std::vector<std::string> getSelectedNodeNames() const;
         [[nodiscard]] bool hasSelectedNode() const;
-        [[nodiscard]] NodeType getSelectedNodeType() const;
+        [[nodiscard]] core::NodeType getSelectedNodeType() const;
         [[nodiscard]] int getSelectedNodeIndex() const;
         [[nodiscard]] std::vector<bool> getSelectedNodeMask() const;
         [[nodiscard]] int getSelectedCameraUid() const;
@@ -142,17 +144,17 @@ namespace lfs::vis {
         [[nodiscard]] glm::vec3 getSelectionWorldCenter() const;
 
         // Cropbox operations for selected node
-        NodeId getSelectedNodeCropBoxId() const;
-        CropBoxData* getSelectedNodeCropBox();
-        const CropBoxData* getSelectedNodeCropBox() const;
+        core::NodeId getSelectedNodeCropBoxId() const;
+        core::CropBoxData* getSelectedNodeCropBox();
+        const core::CropBoxData* getSelectedNodeCropBox() const;
         void syncCropBoxToRenderSettings();
 
         // Ellipsoid operations for selected node
         void ensureEllipsoidForSelectedNode();
         void selectEllipsoidForCurrentNode();
-        NodeId getSelectedNodeEllipsoidId() const;
-        EllipsoidData* getSelectedNodeEllipsoid();
-        const EllipsoidData* getSelectedNodeEllipsoid() const;
+        core::NodeId getSelectedNodeEllipsoidId() const;
+        core::EllipsoidData* getSelectedNodeEllipsoid();
+        const core::EllipsoidData* getSelectedNodeEllipsoid() const;
         void syncEllipsoidToRenderSettings();
 
         void loadDataset(const std::filesystem::path& path,
@@ -211,10 +213,21 @@ namespace lfs::vis {
         /// Mirror selected gaussians along specified axis
         bool executeMirror(lfs::core::MirrorAxis axis);
 
+        // Appearance model (PPISP) - owned by scene_manager, not scene
+        void setAppearanceModel(std::unique_ptr<lfs::training::PPISP> ppisp,
+                                std::unique_ptr<lfs::training::PPISPControllerPool> controller_pool = nullptr);
+        void clearAppearanceModel();
+        [[nodiscard]] lfs::training::PPISP* getAppearancePPISP() { return appearance_ppisp_.get(); }
+        [[nodiscard]] const lfs::training::PPISP* getAppearancePPISP() const { return appearance_ppisp_.get(); }
+        [[nodiscard]] lfs::training::PPISPControllerPool* getAppearanceControllerPool() { return appearance_controller_pool_.get(); }
+        [[nodiscard]] const lfs::training::PPISPControllerPool* getAppearanceControllerPool() const { return appearance_controller_pool_.get(); }
+        [[nodiscard]] bool hasAppearanceController() const { return appearance_controller_pool_ != nullptr; }
+        [[nodiscard]] bool hasAppearanceModel() const { return appearance_ppisp_ != nullptr; }
+
     private:
         void setupEventHandlers();
         void emitSceneChanged();
-        void syncCropToolRenderSettings(const SceneNode* node);
+        void syncCropToolRenderSettings(const core::SceneNode* node);
         void loadPPISPCompanion(const std::filesystem::path& ppisp_path);
         void handleCropActivePly(const lfs::geometry::BoundingBox& crop_box, bool inverse);
         void handleCropByEllipsoid(const glm::mat4& world_transform, const glm::vec3& radii, bool inverse);
@@ -230,7 +243,7 @@ namespace lfs::vis {
         void updateCropBoxToFitScene(bool use_percentile);
         void updateEllipsoidToFitScene(bool use_percentile);
 
-        Scene scene_;
+        core::Scene scene_;
         mutable std::mutex state_mutex_;
 
         ContentType content_type_ = ContentType::Empty;
@@ -248,9 +261,9 @@ namespace lfs::vis {
             std::unique_ptr<lfs::core::SplatData> data;
             glm::mat4 transform{1.0f};
             struct HierarchyNode {
-                NodeType type = NodeType::SPLAT;
+                core::NodeType type = core::NodeType::SPLAT;
                 glm::mat4 local_transform{1.0f};
-                std::unique_ptr<CropBoxData> cropbox;
+                std::unique_ptr<core::CropBoxData> cropbox;
                 std::vector<HierarchyNode> children;
             };
             std::optional<HierarchyNode> hierarchy;
@@ -261,8 +274,12 @@ namespace lfs::vis {
         // Gaussian-level clipboard (selected Gaussians only)
         std::unique_ptr<lfs::core::SplatData> gaussian_clipboard_;
 
-        ClipboardEntry::HierarchyNode copyNodeHierarchy(const SceneNode* node);
-        void pasteNodeHierarchy(const ClipboardEntry::HierarchyNode& src, NodeId parent_id);
+        ClipboardEntry::HierarchyNode copyNodeHierarchy(const core::SceneNode* node);
+        void pasteNodeHierarchy(const ClipboardEntry::HierarchyNode& src, core::NodeId parent_id);
+
+        // Standalone appearance model (for viewing without training)
+        std::unique_ptr<lfs::training::PPISP> appearance_ppisp_;
+        std::unique_ptr<lfs::training::PPISPControllerPool> appearance_controller_pool_;
     };
 
 } // namespace lfs::vis

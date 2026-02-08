@@ -6,6 +6,7 @@
 #include "core/data_loading_service.hpp"
 #include "core/events.hpp"
 #include "core/logger.hpp"
+#include "core/scene.hpp"
 #include "gui/gui_manager.hpp"
 #include "gui/html_viewer_export.hpp"
 #include "gui/utils/windows_utils.hpp"
@@ -13,7 +14,6 @@
 #include "io/video/video_encoder.hpp"
 #include "rendering/rendering.hpp"
 #include "rendering/rendering_manager.hpp"
-#include "scene/scene.hpp"
 #include "scene/scene_manager.hpp"
 #include "sequencer/keyframe.hpp"
 #include "sequencer/sequencer_controller.hpp"
@@ -173,14 +173,14 @@ namespace lfs::vis::gui {
         splats.reserve(node_names.size());
         for (const auto& name : node_names) {
             const auto* node = scene.getNode(name);
-            if (node && node->type == NodeType::SPLAT && node->model) {
+            if (node && node->type == core::NodeType::SPLAT && node->model) {
                 splats.emplace_back(node->model.get(), scene.getWorldTransform(node->id));
             }
         }
         if (splats.empty())
             return;
 
-        auto merged = Scene::mergeSplatsWithTransforms(splats);
+        auto merged = core::Scene::mergeSplatsWithTransforms(splats);
         if (!merged)
             return;
 

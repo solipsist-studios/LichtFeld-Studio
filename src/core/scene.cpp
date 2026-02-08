@@ -2,7 +2,7 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
-#include "scene/scene.hpp"
+#include "core/scene.hpp"
 #include "core/camera.hpp"
 #include "core/cuda/memory_arena.hpp"
 #include "core/events.hpp"
@@ -10,10 +10,6 @@
 #include "core/path_utils.hpp"
 #include "core/splat_data_transform.hpp"
 #include "core/tensor/internal/memory_pool.hpp"
-#include "io/cache_image_loader.hpp"
-#include "training/components/ppisp.hpp"
-#include "training/components/ppisp_controller.hpp"
-#include "training/dataset.hpp"
 
 #include <algorithm>
 #include <array>
@@ -26,7 +22,7 @@
 #include <ranges>
 #include <set>
 
-namespace lfs::vis {
+namespace lfs::core {
 
     // SceneNode implementation
     SceneNode::SceneNode(Scene* scene) : scene_(scene) {
@@ -282,10 +278,6 @@ namespace lfs::vis {
 
         initial_point_cloud_.reset();
         training_model_node_.clear();
-
-        if (lfs::io::CacheLoader::hasInstance()) {
-            lfs::io::CacheLoader::getInstance().reset_cache();
-        }
 
         // Release GPU memory
         cudaDeviceSynchronize();
@@ -780,13 +772,13 @@ namespace lfs::vis {
             }
             *selection_mask_ = mask_cpu.cuda();
             has_selection_ = true;
-            core::events::state::SelectionChanged{
+            events::state::SelectionChanged{
                 .has_selection = true,
                 .count = static_cast<int>(selected_indices.size())}
                 .emit();
         } else {
             has_selection_ = false;
-            core::events::state::SelectionChanged{.has_selection = false, .count = 0}.emit();
+            events::state::SelectionChanged{.has_selection = false, .count = 0}.emit();
         }
     }
 
@@ -798,13 +790,13 @@ namespace lfs::vis {
         if (has_selection_) {
             count = static_cast<int>(selection_mask_->to(core::DataType::Float32).sum_scalar());
         }
-        core::events::state::SelectionChanged{.has_selection = has_selection_, .count = count}.emit();
+        events::state::SelectionChanged{.has_selection = has_selection_, .count = count}.emit();
     }
 
     void Scene::clearSelection() {
         selection_mask_.reset();
         has_selection_ = false;
-        core::events::state::SelectionChanged{.has_selection = false, .count = 0}.emit();
+        events::state::SelectionChanged{.has_selection = false, .count = 0}.emit();
     }
 
     bool Scene::hasSelection() const {
@@ -2046,23 +2038,8 @@ namespace lfs::vis {
         if (node && node->type == NodeType::CAMERA && node->training_enabled != enabled) {
             node->training_enabled = enabled;
             invalidateCache();
-            core::events::state::SceneChanged{}.emit();
+            events::state::SceneChanged{}.emit();
         }
     }
 
-    void Scene::setAppearanceModel(std::unique_ptr<lfs::training::PPISP> ppisp,
-                                   std::unique_ptr<lfs::training::PPISPControllerPool> controller_pool) {
-        appearance_ppisp_ = std::move(ppisp);
-        appearance_controller_pool_ = std::move(controller_pool);
-        LOG_INFO("Scene: appearance model set (PPISP: {}, Controllers: {})",
-                 appearance_ppisp_ ? "yes" : "no",
-                 appearance_controller_pool_ ? appearance_controller_pool_->num_cameras() : 0);
-    }
-
-    void Scene::clearAppearanceModel() {
-        appearance_ppisp_.reset();
-        appearance_controller_pool_.reset();
-        LOG_DEBUG("Scene: appearance model cleared");
-    }
-
-} // namespace lfs::vis
+} // namespace lfs::core
