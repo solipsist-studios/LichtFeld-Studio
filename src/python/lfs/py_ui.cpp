@@ -3286,8 +3286,7 @@ namespace lfs::python {
                                  {0, 0}, {u1, v1}, t, {0, 0, 0, 0});
                 },
                 nb::arg("texture"), nb::arg("size"), nb::arg("tint") = nb::none(), "Draw a DynamicTexture with automatic UV scaling")
-            .def(
-                "image_tensor", [](PyUILayout& /*self*/, const std::string& label, PyTensor& tensor, std::tuple<float, float> size, nb::object tint) {
+            .def("image_tensor", [](PyUILayout& /*self*/, const std::string& label, PyTensor& tensor, std::tuple<float, float> size, nb::object tint) {
                     PyDynamicTexture* tex_ptr = nullptr;
                     {
                         std::lock_guard lock(g_dynamic_textures_mutex);
@@ -3306,9 +3305,7 @@ namespace lfs::python {
                     auto [u1, v1] = tex.uv1();
                     const ImVec4 t = tint.is_none() ? ImVec4(1, 1, 1, 1) : tuple_to_imvec4(tint);
                     ImGui::Image(static_cast<ImTextureID>(tex.texture_id()),
-                                 {std::get<0>(size), std::get<1>(size)}, {0, 0}, {u1, v1}, t, {0, 0, 0, 0});
-                },
-                nb::arg("label"), nb::arg("tensor"), nb::arg("size"), nb::arg("tint") = nb::none(), "Draw a tensor as an image, caching the GL texture by label")
+                                 {std::get<0>(size), std::get<1>(size)}, {0, 0}, {u1, v1}, t, {0, 0, 0, 0}); }, nb::arg("label"), nb::arg("tensor"), nb::arg("size"), nb::arg("tint") = nb::none(), "Draw a tensor as an image, caching the GL texture by label")
             // Drag-drop
             .def("begin_drag_drop_source", &PyUILayout::begin_drag_drop_source, "Begin a drag-drop source on the last item, returns True if dragging")
             .def("set_drag_drop_payload", &PyUILayout::set_drag_drop_payload, nb::arg("type"), nb::arg("data"), "Set the drag-drop payload type and data string")
