@@ -40,10 +40,17 @@ class PluginInstaller:
         return None
 
     @staticmethod
-    def _embedded_python_env() -> dict:
-        """Return env dict with PYTHONHOME set so uv subprocesses find the stdlib."""
+    def _python_probe_env() -> dict:
+        """Return env dict with PYTHONHOME for direct embedded Python invocations."""
         env = os.environ.copy()
         env["PYTHONHOME"] = sys.prefix
+        return env
+
+    @staticmethod
+    def _uv_env() -> dict:
+        """Return env dict with PYTHONHOME stripped so uv-managed Python isn't poisoned."""
+        env = os.environ.copy()
+        env.pop("PYTHONHOME", None)
         return env
 
     def ensure_venv(self) -> bool:
@@ -71,7 +78,7 @@ class PluginInstaller:
                      "print(f'prefix={sys.prefix}'); "
                      "print(f'base_prefix={sys.base_prefix}')"],
                     capture_output=True, text=True, timeout=10,
-                    env=self._embedded_python_env(),
+                    env=self._python_probe_env(),
                 )
                 for line in probe.stdout.strip().splitlines():
                     logger.info("Python probe: %s", line)
@@ -91,7 +98,7 @@ class PluginInstaller:
             cmd,
             capture_output=True,
             text=True,
-            env=self._embedded_python_env(),
+            env=self._python_probe_env(),
         )
 
         if result.returncode != 0:
@@ -153,7 +160,7 @@ class PluginInstaller:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            env=self._embedded_python_env(),
+            env=self._uv_env(),
         ) as proc:
             if proc.stdout is not None:
                 for line in iter(proc.stdout.readline, ""):

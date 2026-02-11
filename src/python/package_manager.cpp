@@ -237,7 +237,7 @@ namespace lfs::python {
 #else
             setenv("PYTHONHOME", home_str.c_str(), 1);
 #endif
-            LOG_INFO("Set PYTHONHOME={}", home_str);
+            LOG_INFO("Set PYTHONHOME={} for venv creation", home_str);
         }
 
         LOG_INFO("Executing: {}", cmd.str());

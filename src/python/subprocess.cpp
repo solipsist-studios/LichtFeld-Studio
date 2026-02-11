@@ -4,7 +4,6 @@
 
 #include "subprocess.hpp"
 
-#include <core/executable_path.hpp>
 #include <core/logger.hpp>
 
 #ifndef _WIN32
@@ -44,10 +43,6 @@ namespace lfs::python {
         if (pid_ == 0) {
             setenv("UV_HTTP_TIMEOUT", "300", 1);
             setenv("TERM", "xterm-256color", 1);
-
-            const auto python_home = lfs::core::getPythonHome();
-            if (!python_home.empty())
-                setenv("PYTHONHOME", python_home.string().c_str(), 1);
 
             std::vector<const char*> argv;
             argv.push_back(program.c_str());
