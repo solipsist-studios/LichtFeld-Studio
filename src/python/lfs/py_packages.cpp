@@ -10,6 +10,7 @@
 #include "../package_manager.hpp"
 #include "../runner.hpp"
 #include "core/executable_path.hpp"
+#include <core/logger.hpp>
 
 namespace lfs::python {
 
@@ -88,6 +89,11 @@ namespace lfs::python {
             "embedded_python_path",
             []() -> std::string {
                 const auto p = lfs::core::getEmbeddedPython();
+                if (p.empty()) {
+                    LOG_WARN("Embedded Python not found (exe_dir={})", lfs::core::getExecutableDir().string());
+                } else {
+                    LOG_INFO("Embedded Python resolved: {}", p.string());
+                }
                 return p.empty() ? "" : p.string();
             },
             "Get path to embedded Python executable (empty string if not available)");

@@ -56,11 +56,27 @@ class PluginInstaller:
         if embedded_python and embedded_python.exists():
             cmd.extend(["--python", str(embedded_python)])
             logger.info("Plugin venv using embedded Python: %s", embedded_python)
+            try:
+                probe = subprocess.run(
+                    [str(embedded_python), "-I", "-c",
+                     "import sys; print(f'executable={sys.executable}'); "
+                     "print(f'prefix={sys.prefix}'); "
+                     "print(f'base_prefix={sys.base_prefix}')"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                for line in probe.stdout.strip().splitlines():
+                    logger.info("Python probe: %s", line)
+                if probe.stderr.strip():
+                    logger.warning("Python probe stderr: %s", probe.stderr.strip())
+            except Exception as e:
+                logger.warning("Python probe failed: %s", e)
         else:
             logger.warning(
                 "Embedded Python not found (resolved=%s), uv will use system Python",
                 embedded_python,
             )
+
+        logger.info("Running: %s", " ".join(str(c) for c in cmd))
 
         result = subprocess.run(
             cmd,
@@ -69,6 +85,7 @@ class PluginInstaller:
         )
 
         if result.returncode != 0:
+            logger.error("uv venv failed (exit %d): %s", result.returncode, result.stderr)
             raise PluginDependencyError(f"Failed to create venv: {result.stderr}")
 
         return True

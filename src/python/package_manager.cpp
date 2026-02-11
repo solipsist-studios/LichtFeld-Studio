@@ -224,9 +224,11 @@ namespace lfs::python {
             cmd << " --python \"" << embedded_python.string() << "\"";
             LOG_INFO("Using embedded Python for venv: {}", embedded_python.string());
         } else {
-            LOG_WARN("Embedded Python not found, uv will use system Python");
+            LOG_WARN("Embedded Python not found (exe_dir={}), uv will use system Python",
+                     lfs::core::getExecutableDir().string());
         }
 
+        LOG_INFO("Executing: {}", cmd.str());
         const auto [exit_code, output] = execute_command(cmd.str());
         if (exit_code != 0) {
             LOG_ERROR("Failed to create venv: {}", output);
