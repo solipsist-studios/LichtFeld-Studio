@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Plugin validation utilities."""
 
+import sys
 from pathlib import Path
 
 try:
@@ -46,5 +47,37 @@ def validate_plugin(plugin_path: str | Path) -> list[str]:
             errors.append("Missing on_load() function")
         if "def on_unload" not in content:
             errors.append("Missing on_unload() function")
+
+    errors.extend(_check_venv(plugin_dir))
+
+    return errors
+
+
+def _check_venv(plugin_dir: Path) -> list[str]:
+    """Check venv health for a plugin directory."""
+    errors = []
+    venv = plugin_dir / ".venv"
+
+    has_deps = (plugin_dir / "pyproject.toml").exists() and \
+        any((plugin_dir / "pyproject.toml").read_text().find(s) >= 0
+            for s in ("dependencies",))
+
+    if not venv.exists():
+        if has_deps:
+            errors.append("venv: missing — run plugin install to create")
+        return errors
+
+    if sys.platform == "win32":
+        python = venv / "Scripts" / "python.exe"
+    else:
+        python = venv / "bin" / "python"
+
+    if not python.exists():
+        errors.append(f"venv: broken — missing {python.relative_to(plugin_dir)}")
+        return errors
+
+    stamp = venv / ".deps_installed"
+    if has_deps and not stamp.exists():
+        errors.append("venv: dependencies not installed")
 
     return errors

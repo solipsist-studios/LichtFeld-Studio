@@ -213,6 +213,12 @@ namespace lfs::python {
             std::filesystem::remove_all(m_venv_dir);
         }
 
+        const auto uv = uv_path();
+        if (uv.empty()) {
+            LOG_ERROR("uv not found, cannot create venv");
+            return false;
+        }
+
         const auto embedded_python = lfs::core::getEmbeddedPython();
         if (embedded_python.empty()) {
             LOG_ERROR("Embedded Python not found (exe_dir={})", lfs::core::getExecutableDir().string());
@@ -221,18 +227,10 @@ namespace lfs::python {
 
         LOG_INFO("Creating venv at {} with {}", m_venv_dir.string(), embedded_python.string());
 
-        const auto python_home = lfs::core::getPythonHome();
-
         std::ostringstream cmd;
-#ifdef _WIN32
-        if (!python_home.empty())
-            cmd << "set PYTHONHOME=" << python_home.string() << "&& ";
-        cmd << "\"" << embedded_python.string() << "\" -m venv --without-pip \"" << m_venv_dir.string() << "\"";
-#else
-        if (!python_home.empty())
-            cmd << "PYTHONHOME=\"" << python_home.string() << "\" ";
-        cmd << "\"" << embedded_python.string() << "\" -m venv --without-pip \"" << m_venv_dir.string() << "\"";
-#endif
+        cmd << "\"" << uv.string() << "\" venv"
+            << " \"" << m_venv_dir.string() << "\""
+            << " --python \"" << embedded_python.string() << "\"";
 
         LOG_INFO("Executing: {}", cmd.str());
         const auto [exit_code, output] = execute_command(cmd.str());

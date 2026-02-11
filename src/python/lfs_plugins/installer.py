@@ -40,13 +40,6 @@ class PluginInstaller:
         return None
 
     @staticmethod
-    def _python_probe_env() -> dict:
-        """Return env dict with PYTHONHOME for direct embedded Python invocations."""
-        env = os.environ.copy()
-        env["PYTHONHOME"] = sys.prefix
-        return env
-
-    @staticmethod
     def _uv_env() -> dict:
         """Return env dict with PYTHONHOME stripped so uv-managed Python isn't poisoned."""
         env = os.environ.copy()
@@ -54,7 +47,7 @@ class PluginInstaller:
         return env
 
     def ensure_venv(self) -> bool:
-        """Create plugin-specific venv if needed."""
+        """Ensure venv path is set, cleaning up broken venvs. Actual creation is done by uv sync."""
         venv_path = self.plugin.info.path / ".venv"
         self.plugin.venv_path = venv_path
 
@@ -63,26 +56,8 @@ class PluginInstaller:
             return True
 
         if venv_path.exists():
-            logger.warning("Broken venv (missing python), recreating: %s", venv_path)
+            logger.warning("Broken venv (missing python), removing: %s", venv_path)
             shutil.rmtree(venv_path)
-
-        embedded_python = self._get_embedded_python()
-        python_exe = str(embedded_python) if embedded_python and embedded_python.exists() else sys.executable
-        logger.info("Creating plugin venv with: %s", python_exe)
-
-        cmd = [python_exe, "-m", "venv", "--without-pip", str(venv_path)]
-        logger.info("Running: %s", " ".join(cmd))
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            env=self._python_probe_env(),
-        )
-
-        if result.returncode != 0:
-            logger.error("venv creation failed (exit %d): %s", result.returncode, result.stderr)
-            raise PluginDependencyError(f"Failed to create venv: {result.stderr}")
 
         return True
 
@@ -120,7 +95,8 @@ class PluginInstaller:
         if not uv:
             raise PluginDependencyError("uv not found")
 
-        venv_python = self._get_venv_python()
+        embedded = self._get_embedded_python()
+        python_exe = str(embedded) if embedded and embedded.exists() else sys.executable
 
         cmd = [
             str(uv),
@@ -128,7 +104,7 @@ class PluginInstaller:
             "--project",
             str(plugin_path),
             "--python",
-            str(venv_python),
+            python_exe,
         ]
 
         if on_progress:

@@ -4,6 +4,7 @@
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from .templates import create_plugin
@@ -23,11 +24,10 @@ def create_plugin_with_venv(
     assert uv_path, "UV path not provided"
     assert python_path, "Python path not provided"
 
-    venv_path = plugin_dir / ".venv"
-
-    cmd = [uv_path, "venv", str(venv_path), "--python", python_path]
+    cmd = [uv_path, "sync", "--project", str(plugin_dir), "--python", python_path]
     subprocess.run(cmd, capture_output=True, text=True, check=True)
 
+    venv_path = plugin_dir / ".venv"
     _generate_vscode_config(plugin_dir, venv_path, typings_dir, site_packages_dir)
     return str(plugin_dir)
 
@@ -38,7 +38,10 @@ def _generate_vscode_config(
     typings_dir: str,
     site_packages_dir: str,
 ) -> None:
-    venv_python = venv_path / "bin" / "python"
+    if sys.platform == "win32":
+        venv_python = venv_path / "Scripts" / "python.exe"
+    else:
+        venv_python = venv_path / "bin" / "python"
 
     vscode_dir = plugin_dir / ".vscode"
     vscode_dir.mkdir(exist_ok=True)

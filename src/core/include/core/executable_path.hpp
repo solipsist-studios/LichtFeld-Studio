@@ -222,7 +222,7 @@ namespace lfs::core {
         return {};
     }
 
-    // Embedded Python executable (for uv venv creation / plugin isolation)
+    // Embedded Python executable (base interpreter for uv sync/venv and plugin isolation)
     inline std::filesystem::path getEmbeddedPython() {
         const auto exe_dir = getExecutableDir();
 
