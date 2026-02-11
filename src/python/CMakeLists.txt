@@ -68,6 +68,7 @@ target_include_directories(lfs_python_runtime
 target_link_libraries(lfs_python_runtime
     PUBLIC
         Python::Python
+        glm::glm
     PRIVATE
         lfs_logger
 )
@@ -160,6 +161,7 @@ nanobind_add_module(
     viewport_overlay.cpp
     lfs/py_mcp.cpp
     lfs/py_mesh.cpp
+    lfs/py_mesh2splat.cpp
     lfs/openmesh/handles.cpp
     lfs/openmesh/io.cpp
     lfs/py_rendering.cpp

@@ -99,6 +99,25 @@ namespace lfs::vis {
         python::set_editor_context(&editor_context_);
         python::set_operator_callbacks(&editor_context_); // Also set as IOperatorCallbacks for callback dispatch
         python::set_gui_manager(gui_manager_.get());
+        python::set_mesh2splat_callbacks(
+            [](std::shared_ptr<core::MeshData> mesh, std::string name, core::Mesh2SplatOptions opts) {
+                auto* gm = python::get_gui_manager();
+                if (!gm)
+                    return;
+                gm->asyncTasks().startMesh2Splat(std::move(mesh), name, opts);
+            },
+            []() -> bool {
+                auto* gm = python::get_gui_manager();
+                return gm && gm->asyncTasks().isMesh2SplatActive();
+            },
+            []() -> float {
+                auto* gm = python::get_gui_manager();
+                return gm ? gm->asyncTasks().getMesh2SplatProgress() : 0.0f;
+            },
+            []() -> std::string {
+                auto* gm = python::get_gui_manager();
+                return gm ? gm->asyncTasks().getMesh2SplatError() : std::string{};
+            });
         python::set_selected_camera_callback([]() -> int {
             const auto* gm = python::get_gui_manager();
             return gm ? gm->getHighlightedCameraUid() : -1;
@@ -341,6 +360,7 @@ namespace lfs::vis {
         python::set_transform_space_callbacks(nullptr, nullptr);
         python::set_selected_camera_callback(nullptr);
         python::set_invert_masks_callback(nullptr);
+        python::set_mesh2splat_callbacks(nullptr, nullptr, nullptr, nullptr);
         python::set_gui_manager(nullptr);
         trainer_manager_.reset();
         brush_tool_.reset();

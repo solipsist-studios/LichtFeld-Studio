@@ -72,7 +72,6 @@ target_include_directories(lfs_core
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/external
         ${CMAKE_CURRENT_SOURCE_DIR}/tensor  # For internal/ headers
-        ${OPENGL_INCLUDE_DIRS}
 )
 
 target_link_libraries(lfs_core
