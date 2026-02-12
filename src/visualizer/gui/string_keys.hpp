@@ -41,7 +41,7 @@ namespace lichtfeld::Strings {
             inline constexpr const char* GETTING_STARTED = "menu.help.getting_started";
             inline constexpr const char* ABOUT = "menu.help.about";
         } // namespace Help
-    } // namespace Menu
+    }     // namespace Menu
 
     namespace Window {
         inline constexpr const char* GETTING_STARTED = "window.getting_started";
@@ -101,7 +101,7 @@ namespace lichtfeld::Strings {
             inline constexpr const char* ENABLED = "about.interop.enabled";
             inline constexpr const char* DISABLED = "about.interop.disabled";
         } // namespace Interop
-    } // namespace About
+    }     // namespace About
 
     namespace Training {
         namespace Section {
@@ -290,7 +290,7 @@ namespace lichtfeld::Strings {
             inline constexpr const char* ADD = "training.button.add";
             inline constexpr const char* REMOVE = "training.button.remove";
         } // namespace Button
-    } // namespace Training
+    }     // namespace Training
 
     namespace Scene {
         inline constexpr const char* ADD_PLY = "scene.add_ply";
@@ -331,6 +331,11 @@ namespace lichtfeld::Strings {
         inline constexpr const char* DISABLE_ALL_TRAINING = "scene.disable_all_training";
         inline constexpr const char* TRAINING_ENABLED_TOOLTIP = "scene.training_enabled_tooltip";
         inline constexpr const char* TRAINING_DISABLED_TOOLTIP = "scene.training_disabled_tooltip";
+        inline constexpr const char* GO_TO_KEYFRAME = "scene.go_to_keyframe";
+        inline constexpr const char* UPDATE_KEYFRAME = "scene.update_keyframe";
+        inline constexpr const char* SELECT_IN_TIMELINE = "scene.select_in_timeline";
+        inline constexpr const char* ADD_KEYFRAME_SCENE = "scene.add_keyframe_scene";
+        inline constexpr const char* KEYFRAME_EASING = "scene.keyframe_easing";
     } // namespace Scene
 
     namespace Export {
