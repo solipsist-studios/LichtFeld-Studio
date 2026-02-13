@@ -30,6 +30,7 @@ namespace lfs::vis {
         constexpr float MAJOR_TICK_HEIGHT = 8.0f;
         constexpr float MINOR_TICK_HEIGHT = 4.0f;
         constexpr float DOUBLE_CLICK_TIME = 0.3f;
+        constexpr float DRAG_THRESHOLD_PX = 3.0f;
 
         // Loop marker (infinity symbol)
         constexpr float LOOP_MARKER_SCALE = 0.7f;
@@ -385,13 +386,15 @@ namespace lfs::vis {
                             selected_keyframes_.insert(i);
                         }
                     } else {
-                        // Single selection
                         selected_keyframes_.clear();
-                        controller_.selectKeyframe(i);
+                        lfs::core::events::cmd::SequencerSelectKeyframe{.keyframe_index = i}.emit();
                         if (!is_first) {
                             dragging_keyframe_ = true;
                             dragged_keyframe_index_ = i;
                             drag_start_time_ = keyframes[i].time;
+                            drag_start_mouse_x_ = mouse.x;
+                        } else {
+                            lfs::core::events::cmd::SequencerGoToKeyframe{.keyframe_index = i}.emit();
                         }
                     }
                 }
@@ -408,6 +411,9 @@ namespace lfs::vis {
                 }
                 controller_.timeline().setKeyframeTime(dragged_keyframe_index_, new_time, false);
             } else {
+                if (std::abs(mouse.x - drag_start_mouse_x_) < DRAG_THRESHOLD_PX) {
+                    lfs::core::events::cmd::SequencerGoToKeyframe{.keyframe_index = dragged_keyframe_index_}.emit();
+                }
                 controller_.timeline().sortKeyframes();
                 dragging_keyframe_ = false;
             }
@@ -452,12 +458,11 @@ namespace lfs::vis {
                 const bool is_first = (idx == 0);
 
                 if (ImGui::MenuItem("Update to Current View", "U")) {
-                    controller_.selectKeyframe(idx);
+                    lfs::core::events::cmd::SequencerSelectKeyframe{.keyframe_index = idx}.emit();
                     lfs::core::events::cmd::SequencerUpdateKeyframe{}.emit();
                 }
                 if (ImGui::MenuItem("Go to Keyframe")) {
-                    controller_.selectKeyframe(idx);
-                    controller_.seek(keyframes[idx].time);
+                    lfs::core::events::cmd::SequencerGoToKeyframe{.keyframe_index = idx}.emit();
                 }
                 if (ImGui::MenuItem("Edit Time...", nullptr)) {
                     editing_keyframe_time_ = true;

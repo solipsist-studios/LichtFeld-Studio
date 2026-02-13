@@ -63,6 +63,18 @@ namespace lfs::vis::gui {
         }
     }
 
+    void KeyframeSceneSync::emitNodeSelectedForKeyframe(const size_t index) {
+        auto* sm = viewer_->getSceneManager();
+        if (!sm)
+            return;
+
+        const auto name = std::format("Keyframe {}", index + 1);
+        auto& scene = sm->getScene();
+        if (scene.getNode(name)) {
+            lfs::core::events::ui::NodeSelected{.path = name, .type = "KEYFRAME", .metadata = {}}.emit();
+        }
+    }
+
     void KeyframeSceneSync::setupEvents() {
         using namespace lfs::core::events;
 
@@ -90,6 +102,8 @@ namespace lfs::vis::gui {
                 rm->setFocalLength(kf->focal_length_mm);
                 rm->markDirty();
             }
+
+            emitNodeSelectedForKeyframe(e.keyframe_index);
         });
 
         cmd::SequencerSelectKeyframe::when([this](const auto& e) {
@@ -98,21 +112,20 @@ namespace lfs::vis::gui {
                 return;
 
             controller_.selectKeyframe(e.keyframe_index);
+            emitNodeSelectedForKeyframe(e.keyframe_index);
+        });
 
-            auto* sm = viewer_->getSceneManager();
-            if (!sm)
+        ui::RenderSettingsChanged::when([this](const auto& e) {
+            if (!e.focal_length_mm)
                 return;
-
-            const auto name = std::format("Keyframe {}", e.keyframe_index + 1);
-            auto& scene = sm->getScene();
-            const auto* node = scene.getNode(name);
-            if (node) {
-                ui::NodeSelected{
-                    .path = name,
-                    .type = "KEYFRAME",
-                    .metadata = {}}
-                    .emit();
-            }
+            const auto sel = controller_.selectedKeyframe();
+            if (!sel.has_value())
+                return;
+            auto& timeline = controller_.timeline();
+            if (*sel >= timeline.size())
+                return;
+            timeline.setKeyframeFocalLength(*sel, *e.focal_length_mm);
+            controller_.updateLoopKeyframe();
         });
 
         cmd::SequencerDeleteKeyframe::when([this](const auto& e) {
