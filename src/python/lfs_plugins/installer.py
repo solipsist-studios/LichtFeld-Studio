@@ -46,15 +46,24 @@ class PluginInstaller:
                 else:
                     logger.warning("embedded_python_path() returned missing path: %s", python)
             else:
-                logger.info("embedded_python_path() returned empty, falling back to sys.executable: %s",
-                            Path(sys.executable).resolve())
+                logger.warning("embedded_python_path() returned empty")
         except (ImportError, AttributeError):
-            logger.info("lichtfeld.packages not available, falling back to sys.executable: %s",
-                        Path(sys.executable).resolve())
+            logger.warning("lichtfeld.packages not available while resolving bundled Python")
 
         self._embedded_python_cache = result
         self._embedded_python_checked = True
         return result
+
+    def _require_bundled_python(self) -> Path:
+        """Return the bundled Python path or raise with actionable guidance."""
+        bundled_python = self._get_embedded_python()
+        if bundled_python:
+            return bundled_python
+
+        raise PluginDependencyError(
+            "Bundled Python not found. Plugin environments must use LichtFeld Studio's bundled "
+            "Python interpreter. Refusing fallback to system or uv-managed Python."
+        )
 
     def _is_portable_bundle(self) -> bool:
         """Detect portable runtime layout (bin/python.exe + bin/python312._pth)."""
@@ -67,6 +76,9 @@ class PluginInstaller:
     def _uv_env(set_pythonhome: bool = False) -> dict:
         """Return env dict tailored for uv subprocesses."""
         env = os.environ.copy()
+        env["UV_NO_MANAGED_PYTHON"] = "1"
+        env["UV_PYTHON_DOWNLOADS"] = "never"
+        env.pop("UV_MANAGED_PYTHON", None)
         if set_pythonhome:
             # Some runtimes (embedded/portable Python) need PYTHONHOME for stdlib discovery.
             env["PYTHONHOME"] = sys.prefix
@@ -111,9 +123,6 @@ class PluginInstaller:
         module_dir = self._normalize_path(Path(__file__)).parent
         base_dirs.append(module_dir.parent)
 
-        if not portable_bundle:
-            base_dirs.append(self._normalize_path(Path(sys.executable)).parent)
-
         for base in base_dirs:
             if os.name == "nt":
                 add(base / "uv.exe")
@@ -125,43 +134,62 @@ class PluginInstaller:
         return candidates
 
     def _venv_creation_attempts(self) -> list[tuple[str, dict, str]]:
-        """Build uv venv attempts from most to least preferred interpreter."""
-        attempts: list[tuple[str, dict, str]] = []
-        seen: set[str] = set()
+        """Build uv venv attempts (bundled Python only)."""
+        bundled_python = self._require_bundled_python()
+        return [(str(bundled_python), self._uv_env(set_pythonhome=True), "bundled")]
 
-        def add_attempt(python_arg: str, env: dict, label: str) -> None:
-            if python_arg and python_arg not in seen:
-                seen.add(python_arg)
-                attempts.append((python_arg, env, label))
+    def _venv_uses_bundled_python(self, venv_path: Path, bundled_python: Path) -> bool:
+        """Best-effort check that an existing venv was created from bundled Python."""
+        cfg_path = venv_path / "pyvenv.cfg"
+        if not cfg_path.exists():
+            return False
 
-        embedded = self._get_embedded_python()
-        portable_bundle = self._is_portable_bundle()
+        try:
+            cfg = cfg_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return False
 
-        if embedded:
-            add_attempt(str(embedded), self._uv_env(set_pythonhome=True), "embedded")
+        def normalize_str(path: Path) -> str:
+            return os.path.normcase(str(self._normalize_path(path)))
 
-        # Portable builds must stay fully self-contained: do not fall back to system/managed Python.
-        if portable_bundle and attempts:
-            return attempts
+        expected = {
+            normalize_str(bundled_python),
+            normalize_str(bundled_python.parent),
+            normalize_str(bundled_python.parent.parent),
+        }
 
-        sys_python = self._normalize_path(Path(sys.executable))
-        # sys.executable can also be an embedded/runtime interpreter that needs PYTHONHOME.
-        add_attempt(str(sys_python), self._uv_env(set_pythonhome=True), "sys.executable")
-
-        version_spec = f"{sys.version_info.major}.{sys.version_info.minor}"
-        add_attempt(version_spec, self._uv_env(set_pythonhome=False), "uv-managed")
-
-        return attempts
+        for line in cfg.splitlines():
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip().lower()
+            if key not in {"home", "executable", "base-executable"}:
+                continue
+            candidate = value.strip()
+            if not candidate:
+                continue
+            candidate_path = os.path.normcase(str(self._normalize_path(Path(candidate))))
+            if candidate_path in expected:
+                return True
+        return False
 
     def ensure_venv(self) -> bool:
         """Create plugin-specific venv using uv if needed."""
         venv_path = self.plugin.info.path / ".venv"
         self.plugin.venv_path = venv_path
+        bundled_python = self._require_bundled_python()
 
         venv_python = self._get_venv_python()
         if venv_python.exists():
-            logger.info("Plugin venv ready: %s", venv_python)
-            return True
+            if not self._venv_uses_bundled_python(venv_path, bundled_python):
+                logger.warning(
+                    "Existing plugin venv was not created from bundled Python, recreating: %s",
+                    venv_path,
+                )
+                shutil.rmtree(venv_path, ignore_errors=True)
+            else:
+                logger.info("Plugin venv ready: %s", venv_python)
+                return True
 
         if venv_path.exists():
             logger.warning("Broken venv (missing python), removing: %s", venv_path)
@@ -175,7 +203,15 @@ class PluginInstaller:
         portable_bundle = self._is_portable_bundle()
 
         for python_arg, env, label in self._venv_creation_attempts():
-            cmd = [str(uv), "venv", str(venv_path), "--python", python_arg]
+            cmd = [
+                str(uv),
+                "venv",
+                str(venv_path),
+                "--python",
+                python_arg,
+                "--no-managed-python",
+                "--no-python-downloads",
+            ]
             logger.info("Creating venv (%s): %s", label, " ".join(cmd))
 
             result = subprocess.run(
@@ -230,6 +266,8 @@ class PluginInstaller:
         self, on_progress: Optional[Callable[[str], None]] = None
     ) -> bool:
         """Install plugin dependencies via uv sync."""
+        self._require_bundled_python()
+
         plugin_path = self.plugin.info.path
         if not (plugin_path / "pyproject.toml").exists():
             return True
@@ -254,6 +292,8 @@ class PluginInstaller:
             str(plugin_path),
             "--python",
             str(venv_python),
+            "--no-managed-python",
+            "--no-python-downloads",
         ]
 
         logger.info("uv sync command: %s", " ".join(cmd))
@@ -295,14 +335,8 @@ class PluginInstaller:
                 logger.info("uv resolved (bundled): %s", candidate)
                 return candidate
 
-        if portable_bundle:
-            logger.error("uv not found in portable bundle; refusing system uv fallback")
-            return None
-
-        uv = shutil.which("uv")
-        result = Path(uv) if uv else None
-        logger.info("uv resolved: %s", result)
-        return result
+        logger.error("uv not found in bundled runtime; refusing system uv fallback")
+        return None
 
     def _get_venv_python(self) -> Path:
         """Get path to venv's Python interpreter."""

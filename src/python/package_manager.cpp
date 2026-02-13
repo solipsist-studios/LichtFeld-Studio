@@ -153,26 +153,12 @@ namespace lfs::python {
         } else if (const auto p = exe_dir / UV_BINARY; std::filesystem::exists(p)) {
             cached = p;
             bundled = true;
-        } else {
-#ifdef _WIN32
-            auto [exit_code, result] = execute_command("where uv");
-#else
-            auto [exit_code, result] = execute_command("which uv");
-#endif
-            if (exit_code == 0 && !result.empty()) {
-                while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
-                    result.pop_back();
-                if (std::filesystem::path found(result); std::filesystem::exists(found))
-                    cached = found;
-            }
         }
 
         if (cached.empty())
-            LOG_WARN("uv not found");
+            LOG_WARN("Bundled uv not found");
         else if (bundled)
-            LOG_INFO("Using uv: {}", cached.string());
-        else
-            LOG_WARN("Using system uv: {} (bundled version not found)", cached.string());
+            LOG_INFO("Using bundled uv: {}", cached.string());
 
         return cached;
     }
@@ -241,7 +227,8 @@ namespace lfs::python {
 #endif
         cmd << "\"" << uv.string() << "\" venv"
             << " \"" << m_venv_dir.string() << "\""
-            << " --python \"" << embedded_python.string() << "\"";
+            << " --python \"" << embedded_python.string() << "\""
+            << " --no-managed-python --no-python-downloads";
 
         LOG_INFO("Executing: {}", cmd.str());
         const auto [exit_code, output] = execute_command(cmd.str());

@@ -160,7 +160,9 @@ lf.plugins.unload("my_plugin")
 
 ## Adding Dependencies
 
-Plugins have isolated virtual environments. Dependencies are specified in `pyproject.toml` under `[project].dependencies` and installed via `uv sync`.
+Plugins have isolated virtual environments. Dependencies are specified in `pyproject.toml` under `[project].dependencies`.
+
+LichtFeld creates plugin venvs with bundled Python only (`uv venv --python <bundled_python> --no-managed-python --no-python-downloads`) and then runs `uv sync` against that venv.
 
 ```toml
 [project]

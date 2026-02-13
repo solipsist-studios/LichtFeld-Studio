@@ -506,7 +506,6 @@ if(BUILD_PORTABLE)
                 PATTERN "idlelib" EXCLUDE
                 PATTERN "lib2to3" EXCLUDE
                 PATTERN "ensurepip" EXCLUDE
-                PATTERN "unittest" EXCLUDE
             )
             message(STATUS "  Will bundle Python stdlib from: ${VCPKG_PYTHON_STDLIB}")
         else()

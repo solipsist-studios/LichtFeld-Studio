@@ -40,7 +40,14 @@ min_lichtfeld_version = "1.0.0"
 
 ## Dependencies
 
-All dependencies are declared in `[project].dependencies` and resolved via `uv sync`. The installer runs `uv sync --project <plugin_dir>` which creates the plugin's `.venv` and installs everything.
+All dependencies are declared in `[project].dependencies` and resolved via `uv`.
+
+LichtFeld always uses its bundled Python for plugin environments:
+
+1. `uv venv <plugin_dir>/.venv --python <bundled_python> --no-managed-python --no-python-downloads`
+2. `uv sync --project <plugin_dir> --python <plugin_dir>/.venv/.../python --no-managed-python --no-python-downloads`
+
+This intentionally disables uv-managed Python and Python downloads, so plugins run against the same bundled runtime as the app.
 
 For plugins that need packages from custom indexes (e.g., PyTorch CUDA wheels), add `[tool.uv.index]` and `[tool.uv.sources]` sections to the same `pyproject.toml`:
 

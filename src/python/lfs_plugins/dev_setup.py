@@ -3,6 +3,7 @@
 """Plugin development setup - creates plugin with venv and VS Code config."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -24,12 +25,52 @@ def create_plugin_with_venv(
     assert uv_path, "UV path not provided"
     assert python_path, "Python path not provided"
 
-    cmd = [uv_path, "sync", "--project", str(plugin_dir), "--python", python_path]
-    subprocess.run(cmd, capture_output=True, text=True, check=True)
-
     venv_path = plugin_dir / ".venv"
+    venv_python = _venv_python_path(venv_path)
+
+    venv_cmd = [
+        uv_path,
+        "venv",
+        str(venv_path),
+        "--python",
+        python_path,
+        "--no-managed-python",
+        "--no-python-downloads",
+    ]
+    subprocess.run(venv_cmd, capture_output=True, text=True, check=True, env=_uv_env(set_pythonhome=True))
+
+    sync_cmd = [
+        uv_path,
+        "sync",
+        "--project",
+        str(plugin_dir),
+        "--python",
+        str(venv_python),
+        "--no-managed-python",
+        "--no-python-downloads",
+    ]
+    subprocess.run(sync_cmd, capture_output=True, text=True, check=True, env=_uv_env(set_pythonhome=False))
+
     _generate_vscode_config(plugin_dir, venv_path, typings_dir, site_packages_dir)
     return str(plugin_dir)
+
+
+def _uv_env(*, set_pythonhome: bool) -> dict:
+    env = os.environ.copy()
+    env["UV_NO_MANAGED_PYTHON"] = "1"
+    env["UV_PYTHON_DOWNLOADS"] = "never"
+    env.pop("UV_MANAGED_PYTHON", None)
+    if set_pythonhome:
+        env["PYTHONHOME"] = sys.prefix
+    else:
+        env.pop("PYTHONHOME", None)
+    return env
+
+
+def _venv_python_path(venv_path: Path) -> Path:
+    if sys.platform == "win32":
+        return venv_path / "Scripts" / "python.exe"
+    return venv_path / "bin" / "python"
 
 
 def _generate_vscode_config(
