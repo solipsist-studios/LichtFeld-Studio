@@ -556,7 +556,6 @@ namespace lfs::io {
             target_height /= resize_factor;
         }
         if (max_width > 0 && (target_width > max_width || target_height > max_width)) {
-            // Integer math to match OIIO and avoid float rounding errors
             if (target_width > target_height) {
                 target_height = std::max(1, max_width * target_height / target_width);
                 target_width = max_width;
@@ -570,9 +569,7 @@ namespace lfs::io {
         LOG_DEBUG("Image info: {}x{} -> {}x{} (resize_factor={}, max_width={})",
                   src_width, src_height, target_width, target_height, resize_factor, max_width);
 
-        CUcontext saved_context = nullptr;
-        cuCtxGetCurrent(&saved_context);
-        cudaSetDevice(0);
+        cudaSetDevice(impl_->device_id);
 
         using namespace lfs::core;
         Tensor uint8_tensor;
@@ -589,10 +586,13 @@ namespace lfs::io {
         }
 
         void* const gpu_uint8_buffer = uint8_tensor.data_ptr();
-        const size_t decoded_size = src_width * src_height * num_channels;
+        const size_t decoded_size = static_cast<size_t>(src_width) * src_height * num_channels;
 
         nvimgcodecImage_t nv_image;
-        nvimgcodecImageInfo_t output_info = image_info;
+        nvimgcodecImageInfo_t output_info{};
+        output_info.struct_type = NVIMGCODEC_STRUCTURE_TYPE_IMAGE_INFO;
+        output_info.struct_size = sizeof(nvimgcodecImageInfo_t);
+        output_info.struct_next = nullptr;
 
         if (is_grayscale) {
             output_info.sample_format = NVIMGCODEC_SAMPLEFORMAT_P_Y;
@@ -624,7 +624,7 @@ namespace lfs::io {
         decode_params.struct_type = NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS;
         decode_params.struct_size = sizeof(nvimgcodecDecodeParams_t);
         decode_params.struct_next = nullptr;
-        decode_params.apply_exif_orientation = 1;
+        decode_params.apply_exif_orientation = 0;
 
         nvimgcodecFuture_t decode_future;
         status = nvimgcodecDecoderDecode(
@@ -696,16 +696,10 @@ namespace lfs::io {
         }
 
         if (const cudaError_t err = cudaDeviceSynchronize(); err != cudaSuccess) {
-            if (saved_context) {
-                cuCtxSetCurrent(saved_context);
-            }
             throw std::runtime_error(std::string("CUDA sync failed: ") + cudaGetErrorString(err));
         }
         uint8_tensor = Tensor();
 
-        if (saved_context) {
-            cuCtxSetCurrent(saved_context);
-        }
         return output_tensor;
     }
 
@@ -787,7 +781,10 @@ namespace lfs::io {
                 Device::CUDA,
                 DataType::UInt8);
 
-            nvimgcodecImageInfo_t output_info = image_infos[i];
+            nvimgcodecImageInfo_t output_info{};
+            output_info.struct_type = NVIMGCODEC_STRUCTURE_TYPE_IMAGE_INFO;
+            output_info.struct_size = sizeof(nvimgcodecImageInfo_t);
+            output_info.struct_next = nullptr;
             output_info.sample_format = NVIMGCODEC_SAMPLEFORMAT_I_RGB;
             output_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
             output_info.chroma_subsampling = NVIMGCODEC_SAMPLING_444;
@@ -799,7 +796,7 @@ namespace lfs::io {
             output_info.plane_info[0].sample_type = NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8;
             output_info.buffer_kind = NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE;
             output_info.buffer = uint8_tensors[i].data_ptr();
-            output_info.buffer_size = height * width * 3;
+            output_info.buffer_size = static_cast<size_t>(height) * width * 3;
             output_info.cuda_stream = static_cast<cudaStream_t>(cuda_stream);
 
             const auto status = nvimgcodecImageCreate(impl_->instance, &nv_images[i], &output_info);
@@ -818,7 +815,7 @@ namespace lfs::io {
         decode_params.struct_type = NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS;
         decode_params.struct_size = sizeof(nvimgcodecDecodeParams_t);
         decode_params.struct_next = nullptr;
-        decode_params.apply_exif_orientation = 1;
+        decode_params.apply_exif_orientation = 0;
 
         nvimgcodecFuture_t decode_future;
         auto status = nvimgcodecDecoderDecode(
@@ -983,7 +980,7 @@ namespace lfs::io {
         decode_params.struct_type = NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS;
         decode_params.struct_size = sizeof(nvimgcodecDecodeParams_t);
         decode_params.struct_next = nullptr;
-        decode_params.apply_exif_orientation = 1;
+        decode_params.apply_exif_orientation = 0;
 
         nvimgcodecFuture_t decode_future;
         auto status = nvimgcodecDecoderDecode(
