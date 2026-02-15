@@ -14,6 +14,7 @@
 #include "core/tensor.hpp"
 #include "dataset.hpp"
 #include "lfs/kernels/ssim.cuh"
+#include "losses/photometric_loss.hpp"
 #include "metrics/metrics.hpp"
 #include "optimizer/scheduler.hpp"
 #include "progress.hpp"
@@ -296,6 +297,11 @@ namespace lfs::training {
 
         std::unique_ptr<ISparsityOptimizer> sparsity_optimizer_;
 
+        // Persistent photometric loss (workspace reuse across iterations)
+        lfs::training::losses::PhotometricLoss photometric_loss_;
+
+        // Pre-allocated SSIM workspace for densification error maps, eliminates repeated allocations
+        lfs::training::kernels::SSIMWorkspace densification_ssim_workspace_;
         lfs::training::kernels::MaskedFusedL1SSIMWorkspace masked_fused_workspace_;
 
         // Metrics evaluator - handles all evaluation logic

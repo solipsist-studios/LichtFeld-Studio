@@ -215,9 +215,8 @@ namespace lfs::training {
         const lfs::core::Tensor& rendered,
         const lfs::core::Tensor& gt_image,
         const lfs::core::param::OptimizationParameters& opt_params) {
-        lfs::training::losses::PhotometricLoss photometric_loss;
         lfs::training::losses::PhotometricLoss::Params params{.lambda_dssim = opt_params.lambda_dssim};
-        auto result = photometric_loss.forward(rendered, gt_image, params);
+        auto result = photometric_loss_.forward(rendered, gt_image, params);
         if (!result) {
             return std::unexpected(result.error());
         }
@@ -311,9 +310,8 @@ namespace lfs::training {
 
         } else if (mode == param::MaskMode::AlphaConsistent) {
             // Standard photometric loss
-            lfs::training::losses::PhotometricLoss photo_loss_fn;
             const lfs::training::losses::PhotometricLoss::Params params{.lambda_dssim = opt_params.lambda_dssim};
-            auto result = photo_loss_fn.forward(rendered, gt_image, params);
+            auto result = photometric_loss_.forward(rendered, gt_image, params);
             if (!result) {
                 return std::unexpected(result.error());
             }
@@ -1113,6 +1111,10 @@ namespace lfs::training {
                                              iter >= params_.optimization.ppisp_controller_activation_step &&
                                              ppisp_cam_idx >= 0 &&
                                              ppisp_cam_idx < ppisp_controller_pool_->num_cameras();
+            const bool use_pixel_error_densification =
+                (params_.optimization.strategy == "mcmc");
+            const bool use_ssim_error = use_pixel_error_densification &&
+                                        (params_.optimization.strategy == "mcmc");
 
             // Loop over tiles (row-major order)
             for (int tile_idx = 0; tile_idx < num_tiles; ++tile_idx) {
@@ -1349,9 +1351,17 @@ namespace lfs::training {
                     lfs::core::Tensor tile_loss;
                     lfs::core::Tensor tile_grad;
                     lfs::core::Tensor tile_grad_alpha;
+                    lfs::core::Tensor tile_error_map;
+                    lfs::core::Tensor mask_tile;
 
+                    // 1) Compute photometric loss (populates ssim_map in workspace)
                     const bool use_mask = params_.optimization.mask_mode != lfs::core::param::MaskMode::None &&
                                           (cam->has_mask() || (params_.optimization.use_alpha_as_mask && scene_ && scene_->imagesHaveAlpha()));
+                    const bool used_masked_fused =
+                        use_mask &&
+                        (params_.optimization.mask_mode == lfs::core::param::MaskMode::Segment ||
+                         params_.optimization.mask_mode == lfs::core::param::MaskMode::Ignore) &&
+                        params_.optimization.lambda_dssim > 0.0f;
                     if (use_mask) {
                         lfs::core::Tensor mask;
                         if (pipelined_mask_.is_valid() && pipelined_mask_.numel() > 0) {
@@ -1364,7 +1374,7 @@ namespace lfs::training {
                                 params_.optimization.mask_threshold);
                         }
 
-                        lfs::core::Tensor mask_tile = mask;
+                        mask_tile = mask;
                         if (num_tiles > 1 && mask.ndim() == 2) {
                             auto tile_h = mask.slice(0, tile_y_offset, tile_y_offset + tile_height);
                             mask_tile = tile_h.slice(1, tile_x_offset, tile_x_offset + tile_width);
@@ -1390,6 +1400,62 @@ namespace lfs::training {
                         }
                         tile_loss = result->first;
                         tile_grad = result->second;
+                    }
+
+                    // 2) Extract error map from workspace's ssim_map
+                    if (use_pixel_error_densification) {
+                        if (use_ssim_error && params_.optimization.lambda_dssim > 0.0f) {
+                            lfs::core::Tensor ssim_map;
+                            if (used_masked_fused) {
+                                ssim_map = masked_fused_workspace_.ssim_map;
+                            } else if (params_.optimization.lambda_dssim < 1.0f) {
+                                ssim_map = photometric_loss_.fused_workspace().ssim_map;
+                            } else {
+                                ssim_map = photometric_loss_.ssim_workspace().ssim_map;
+                            }
+                            tile_error_map = ssim_map.neg()
+                                                 .add(1.0f)
+                                                 .mean({1}, false)
+                                                 .squeeze(0)
+                                                 .clamp_min(0.0f)
+                                                 .contiguous();
+                        } else if (use_ssim_error) {
+                            // lambda_dssim == 0 but MCMC needs SSIM error: standalone pass
+                            lfs::core::Tensor pred_chw = corrected_image;
+                            lfs::core::Tensor gt_chw = gt_tile;
+                            if (pred_chw.ndim() == 3 && pred_chw.shape()[2] == 3 &&
+                                gt_chw.ndim() == 3 && gt_chw.shape()[2] == 3) {
+                                pred_chw = pred_chw.permute({2, 0, 1}).contiguous();
+                                gt_chw = gt_chw.permute({2, 0, 1}).contiguous();
+                            }
+                            auto [ssim_value, ssim_ctx] = lfs::training::kernels::ssim_forward(
+                                pred_chw, gt_chw, densification_ssim_workspace_, false);
+                            (void)ssim_value;
+                            (void)ssim_ctx;
+                            const auto& fallback_ssim_map = densification_ssim_workspace_.ssim_map;
+                            tile_error_map = fallback_ssim_map.neg()
+                                                 .add(1.0f)
+                                                 .mean({1}, false)
+                                                 .squeeze(0)
+                                                 .clamp_min(0.0f)
+                                                 .contiguous();
+                        } else {
+                            const lfs::core::Tensor abs_diff = (corrected_image - gt_tile).abs();
+                            if (abs_diff.ndim() == 3 && abs_diff.shape()[0] == 3) {
+                                tile_error_map = abs_diff.mean({0}, false);
+                            } else if (abs_diff.ndim() == 3 && abs_diff.shape()[2] == 3) {
+                                tile_error_map = abs_diff.mean({2}, false);
+                            } else {
+                                tile_error_map = abs_diff;
+                            }
+                            tile_error_map = tile_error_map.contiguous();
+                        }
+
+                        if (use_mask &&
+                            (params_.optimization.mask_mode == lfs::core::param::MaskMode::Segment ||
+                             params_.optimization.mask_mode == lfs::core::param::MaskMode::Ignore)) {
+                            tile_error_map = (tile_error_map * mask_tile).contiguous();
+                        }
                     }
 
                     loss_tensor_gpu = loss_tensor_gpu + tile_loss;
@@ -1419,10 +1485,12 @@ namespace lfs::training {
                                               ? tile_grad_alpha
                                               : lfs::core::Tensor::zeros_like(output.alpha);
                         gsplat_rasterize_backward(*gsplat_ctx, raster_grad, grad_alpha,
-                                                  strategy_->get_model(), strategy_->get_optimizer());
+                                                  strategy_->get_model(), strategy_->get_optimizer(),
+                                                  use_pixel_error_densification ? tile_error_map : lfs::core::Tensor{});
                     } else {
                         fast_rasterize_backward(*fast_ctx, raster_grad, strategy_->get_model(),
-                                                strategy_->get_optimizer(), tile_grad_alpha);
+                                                strategy_->get_optimizer(), tile_grad_alpha,
+                                                use_pixel_error_densification ? tile_error_map : lfs::core::Tensor{});
                     }
                     nvtxRangePop();
                 }
