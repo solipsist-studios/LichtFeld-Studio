@@ -176,8 +176,8 @@ namespace lfs::vis {
         // Centralized editor state
         EditorContext editor_context_;
 
-        // Global time context (OMG4 Milestone 0)
-        GlobalTimeContext global_time_context_;
+        // Global time context (4DGS)
+        lfs::core::GlobalTimeContext global_time_context_;
 
         // IPC for MCP selection commands
         std::unique_ptr<SelectionServer> selection_server_;

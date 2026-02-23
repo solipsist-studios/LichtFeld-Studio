@@ -200,8 +200,8 @@ namespace lfs::core {
             EVENT(FrameRendered, float render_ms; float fps; int num_gaussians;);
             EVENT(KeyframeListChanged, size_t count;);
 
-            // Global time (OMG4 Milestone 0)
-            EVENT(TimeChanged, float time; bool is_time_aware;);
+            // Global time (4DGS)
+            EVENT(TimeChanged, float time;);
 
             // CUDA version check
             EVENT(CudaVersionUnsupported, int major; int minor; int min_major; int min_minor;);

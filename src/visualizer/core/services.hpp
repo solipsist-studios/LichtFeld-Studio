@@ -37,7 +37,7 @@ namespace lfs::vis {
         void set(gui::GuiManager* gm) { gui_manager_ = gm; }
         void set(ParameterManager* pm) { parameter_manager_ = pm; }
         void set(EditorContext* ec) { editor_context_ = ec; }
-        void set(GlobalTimeContext* gtc) { global_time_context_ = gtc; }
+        void set(lfs::core::GlobalTimeContext* gtc) { global_time_context_ = gtc; }
 
         // Access
         [[nodiscard]] SceneManager& scene() {
@@ -75,7 +75,7 @@ namespace lfs::vis {
             return *editor_context_;
         }
 
-        [[nodiscard]] GlobalTimeContext& time() {
+        [[nodiscard]] lfs::core::GlobalTimeContext& time() {
             assert(global_time_context_ && "GlobalTimeContext not registered");
             return *global_time_context_;
         }
@@ -88,7 +88,7 @@ namespace lfs::vis {
         [[nodiscard]] gui::GuiManager* guiOrNull() { return gui_manager_; }
         [[nodiscard]] ParameterManager* paramsOrNull() { return parameter_manager_; }
         [[nodiscard]] EditorContext* editorOrNull() { return editor_context_; }
-        [[nodiscard]] GlobalTimeContext* timeOrNull() { return global_time_context_; }
+        [[nodiscard]] lfs::core::GlobalTimeContext* timeOrNull() { return global_time_context_; }
 
         // Check if all core services are registered
         [[nodiscard]] bool isInitialized() const {
@@ -125,7 +125,7 @@ namespace lfs::vis {
         gui::GuiManager* gui_manager_ = nullptr;
         ParameterManager* parameter_manager_ = nullptr;
         EditorContext* editor_context_ = nullptr;
-        GlobalTimeContext* global_time_context_ = nullptr;
+        lfs::core::GlobalTimeContext* global_time_context_ = nullptr;
 
         // Tool state
         std::vector<glm::vec3> align_picked_points_;
