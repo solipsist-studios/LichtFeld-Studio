@@ -5,6 +5,7 @@
 #pragma once
 
 #include "core/editor_context.hpp"
+#include "core/global_time_context.hpp"
 #include "core/main_loop.hpp"
 #include "core/parameter_manager.hpp"
 #include "core/parameters.hpp"
@@ -174,6 +175,9 @@ namespace lfs::vis {
 
         // Centralized editor state
         EditorContext editor_context_;
+
+        // Global time context (OMG4 Milestone 0)
+        GlobalTimeContext global_time_context_;
 
         // IPC for MCP selection commands
         std::unique_ptr<SelectionServer> selection_server_;

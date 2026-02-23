@@ -83,6 +83,7 @@ namespace lfs::vis {
         services().set(gui_manager_.get());
         services().set(parameter_manager_.get());
         services().set(&editor_context_);
+        services().set(&global_time_context_);
 
         registerBuiltinTools();
 

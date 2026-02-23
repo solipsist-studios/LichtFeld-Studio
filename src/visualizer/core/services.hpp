@@ -5,6 +5,7 @@
 #pragma once
 
 #include "core/export.hpp"
+#include "core/global_time_context.hpp"
 #include <cassert>
 #include <glm/glm.hpp>
 #include <vector>
@@ -36,6 +37,7 @@ namespace lfs::vis {
         void set(gui::GuiManager* gm) { gui_manager_ = gm; }
         void set(ParameterManager* pm) { parameter_manager_ = pm; }
         void set(EditorContext* ec) { editor_context_ = ec; }
+        void set(GlobalTimeContext* gtc) { global_time_context_ = gtc; }
 
         // Access
         [[nodiscard]] SceneManager& scene() {
@@ -73,6 +75,11 @@ namespace lfs::vis {
             return *editor_context_;
         }
 
+        [[nodiscard]] GlobalTimeContext& time() {
+            assert(global_time_context_ && "GlobalTimeContext not registered");
+            return *global_time_context_;
+        }
+
         // Nullable access
         [[nodiscard]] SceneManager* sceneOrNull() { return scene_manager_; }
         [[nodiscard]] TrainerManager* trainerOrNull() { return trainer_manager_; }
@@ -81,6 +88,7 @@ namespace lfs::vis {
         [[nodiscard]] gui::GuiManager* guiOrNull() { return gui_manager_; }
         [[nodiscard]] ParameterManager* paramsOrNull() { return parameter_manager_; }
         [[nodiscard]] EditorContext* editorOrNull() { return editor_context_; }
+        [[nodiscard]] GlobalTimeContext* timeOrNull() { return global_time_context_; }
 
         // Check if all core services are registered
         [[nodiscard]] bool isInitialized() const {
@@ -100,6 +108,7 @@ namespace lfs::vis {
             gui_manager_ = nullptr;
             parameter_manager_ = nullptr;
             editor_context_ = nullptr;
+            global_time_context_ = nullptr;
             align_picked_points_.clear();
         }
 
@@ -116,6 +125,7 @@ namespace lfs::vis {
         gui::GuiManager* gui_manager_ = nullptr;
         ParameterManager* parameter_manager_ = nullptr;
         EditorContext* editor_context_ = nullptr;
+        GlobalTimeContext* global_time_context_ = nullptr;
 
         // Tool state
         std::vector<glm::vec3> align_picked_points_;

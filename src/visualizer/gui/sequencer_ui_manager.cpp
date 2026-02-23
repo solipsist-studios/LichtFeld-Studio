@@ -11,6 +11,7 @@
 #include "core/event_bridge/localization_manager.hpp"
 #include "core/events.hpp"
 #include "core/logger.hpp"
+#include "core/services.hpp"
 #include "gui/string_keys.hpp"
 #include "rendering/rendering.hpp"
 #include "rendering/rendering_manager.hpp"
@@ -104,6 +105,17 @@ namespace lfs::vis::gui {
 
         const bool is_playing = controller_.isPlaying() && !controller_.timeline().empty();
 
+        // Publish playhead to the global time context so all subsystems
+        // (viewport, rendering, future 4D dataset/model systems) can query it.
+        // Only emit TimeChanged when the playhead actually moves to avoid flooding the event bus.
+        if (auto* gtc = services().timeOrNull()) {
+            const float new_time = controller_.playhead();
+            if (new_time != gtc->current_time) {
+                gtc->current_time = new_time;
+                lfs::core::events::state::TimeChanged{.time = new_time, .is_time_aware = gtc->time_aware}.emit();
+            }
+        }
+
         if (auto* const rm = viewer_->getRenderingManager()) {
             rm->setOverlayAnimationActive(is_playing);
             if (is_playing && ui_state_.follow_playback) {
@@ -119,6 +131,26 @@ namespace lfs::vis::gui {
         panel_->setSnapEnabled(ui_state_.snap_to_grid);
         panel_->setSnapInterval(ui_state_.snap_interval);
         panel_->render(viewport.pos.x, viewport.size.x, viewport.pos.y + viewport.size.y);
+
+        // Time Aware toggle — rendered as a small overlay above the sequencer panel.
+        if (auto* gtc = services().timeOrNull()) {
+            using namespace panel_config;
+            const float toggle_x = viewport.pos.x + viewport.size.x - 128.0f - PADDING_H;
+            const float toggle_y = viewport.pos.y + viewport.size.y - HEIGHT - PADDING_BOTTOM - 26.0f;
+            ImGui::SetNextWindowPos({toggle_x, toggle_y});
+            ImGui::SetNextWindowBgAlpha(0.75f);
+            constexpr ImGuiWindowFlags kOverlayFlags =
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
+            ImGui::Begin("##time_aware_toggle", nullptr, kOverlayFlags);
+            bool ta = gtc->time_aware;
+            if (ImGui::Checkbox("Time Aware", &ta)) {
+                gtc->time_aware = ta;
+                lfs::core::events::state::TimeChanged{.time = gtc->current_time, .is_time_aware = ta}.emit();
+            }
+            ImGui::End();
+        }
     }
 
     void SequencerUIManager::renderCameraPath(const ViewportLayout& viewport) {
