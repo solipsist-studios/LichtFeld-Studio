@@ -84,6 +84,13 @@ namespace lfs::vis {
         services().set(parameter_manager_.get());
         services().set(&editor_context_);
 
+        // Bind global time context to the sequencer controller and panel layout
+        // that are owned by gui_manager_.  Both live for the lifetime of the
+        // VisualizerImpl so raw-pointer binding is safe here.
+        global_time_context_.bind(&gui_manager_->sequencer(),
+                                  &gui_manager_->panelLayout());
+        services().set(&global_time_context_);
+
         registerBuiltinTools();
 
         // Initialize operator system
@@ -1014,7 +1021,8 @@ namespace lfs::vis {
             .settings = rendering_manager_->getSettings(),
             .viewport_region = has_viewport_region ? &viewport_region : nullptr,
             .has_focus = gui_manager_ && gui_manager_->isViewportFocused(),
-            .scene_manager = scene_manager_.get()};
+            .scene_manager = scene_manager_.get(),
+            .current_time = global_time_context_.currentTime()};
 
         if (gui_manager_) {
             rendering_manager_->setCropboxGizmoActive(gui_manager_->gizmo().isCropboxGizmoActive());

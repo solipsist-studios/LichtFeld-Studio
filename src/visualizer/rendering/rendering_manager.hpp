@@ -227,6 +227,9 @@ namespace lfs::vis {
             const ViewportRegion* viewport_region = nullptr;
             bool has_focus = false;
             SceneManager* scene_manager = nullptr;
+            // Current sequencer playhead time in seconds (from GlobalTimeContext).
+            // Set to 0.0f when the sequencer has no timeline.
+            float current_time = 0.0f;
         };
 
         RenderingManager();
