@@ -7,6 +7,7 @@ import time
 
 import lichtfeld as lf
 
+from .flipbook_trainer import FlipbookParameters, TimeSampledSplatModel
 from .types import Panel
 from .ui.state import AppState
 
@@ -52,6 +53,17 @@ class IterationRateTracker:
 _rate_tracker = IterationRateTracker()
 
 
+class _FlipbookState:
+    """Persistent UI state for the Flipbook training section."""
+
+    params = FlipbookParameters()
+    is_running = False
+    result: TimeSampledSplatModel | None = None
+
+
+_flipbook_state = _FlipbookState()
+
+
 class TrainingPanel(Panel):
     idname = "lfs.training"
     label = "Training"
@@ -92,6 +104,9 @@ class TrainingPanel(Panel):
 
         if layout.collapsing_header(tr("training.section.advanced_params") + "##py", default_open=False):
             self._draw_advanced_params(layout, state, iteration, params)
+
+        if layout.collapsing_header("4D Flipbook##py", default_open=False):
+            self._draw_flipbook_section(layout, state)
 
         self._draw_status(layout, state, iteration)
 
@@ -845,6 +860,80 @@ class TrainingPanel(Panel):
         layout.label(label)
         layout.table_next_column()
         layout.label(value)
+
+    def _draw_flipbook_section(self, layout, state):
+        """Draw the 4D Flipbook training controls."""
+        fb = _flipbook_state
+        can_start = (state in ("ready", "completed", "stopped")) and not fb.is_running
+
+        layout.spacing()
+        layout.text_disabled("Train one model per time step (4D dataset required).")
+        layout.spacing()
+
+        # Keyframe stride
+        layout.push_item_width(-1)
+        stride_labels = ["1 (all frames)", "2", "4", "8"]
+        stride_values = [1, 2, 4, 8]
+        cur_stride_idx = stride_values.index(fb.params.keyframe_stride) if fb.params.keyframe_stride in stride_values else 0
+        changed, new_idx = layout.combo("Keyframe Stride##fb", cur_stride_idx, stride_labels)
+        if changed:
+            fb.params.keyframe_stride = stride_values[new_idx]
+        layout.pop_item_width()
+        if layout.is_item_hovered():
+            layout.set_tooltip("Train every N-th time step (1 = all frames)")
+
+        # Warm start
+        _, fb.params.warm_start = layout.checkbox("Warm-Start from Prev Frame##fb", fb.params.warm_start)
+        if layout.is_item_hovered():
+            layout.set_tooltip("Initialise each frame's model from the previous frame's trained parameters")
+
+        # Per-frame iterations
+        _, fb.params.iterations_per_frame = layout.input_int(
+            "Iters/Frame##fb", fb.params.iterations_per_frame, 1000, 5000
+        )
+        fb.params.iterations_per_frame = max(0, fb.params.iterations_per_frame)
+        if layout.is_item_hovered():
+            layout.set_tooltip("Per-frame iteration budget (0 = use global Iterations setting)")
+
+        # Export per-frame models
+        _, fb.params.export_per_frame = layout.checkbox("Export Per-Frame Models##fb", fb.params.export_per_frame)
+        if layout.is_item_hovered():
+            layout.set_tooltip("Write PLY files + manifest JSON for each trained frame")
+
+        layout.spacing()
+
+        # Status / result summary
+        if fb.result is not None:
+            layout.text_colored(
+                f"Result: {len(fb.result)} frame(s) available for playback.",
+                COLOR_SUCCESS,
+            )
+        elif fb.is_running:
+            layout.text_colored("Flipbook training in progress…", COLOR_MUTED)
+
+        layout.spacing()
+
+        avail_w, _ = layout.get_content_region_avail()
+        if not can_start:
+            layout.begin_disabled()
+        if layout.button_styled("Start Flipbook Training##fb", "primary", (avail_w, 0)):
+            lf.log_info("Flipbook training requested via UI (stride=%d, warm_start=%s)",
+                        fb.params.keyframe_stride, fb.params.warm_start)
+            # Actual orchestration is delegated to the application layer;
+            # the UI only sets intent and relies on the app to call FlipbookTrainer.
+            # Here we emit a named event that the application can subscribe to.
+            try:
+                lf.ui.emit_event("flipbook_train_requested", {
+                    "keyframe_stride": fb.params.keyframe_stride,
+                    "warm_start": fb.params.warm_start,
+                    "iterations_per_frame": fb.params.iterations_per_frame,
+                    "export_per_frame": fb.params.export_per_frame,
+                })
+            except AttributeError:
+                # lf.ui.emit_event may not exist in all versions; log and continue.
+                lf.log_info("Flipbook: emit_event not available; start training manually.")
+        if not can_start:
+            layout.end_disabled()
 
     def _draw_status(self, layout, state, iteration):
         layout.separator()

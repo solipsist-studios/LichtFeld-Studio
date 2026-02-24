@@ -3,8 +3,11 @@
 """Sequencer panel - camera animation settings and video export."""
 
 from enum import IntEnum
+from pathlib import Path
 
 import lichtfeld as lf
+
+from .flipbook_trainer import TimeSampledSplatModel, get_model_path_for_time
 
 
 class VideoPreset(IntEnum):
@@ -50,6 +53,28 @@ class _VideoExportState:
 
 
 _video_state = _VideoExportState()
+
+
+class _FourDPlaybackState:
+    """Persistent state for 4D Flipbook playback in the Sequencer panel."""
+
+    # The currently loaded TimeSampledSplatModel for playback (set by FlipbookTrainer).
+    active_model: TimeSampledSplatModel | None = None
+    # Last loaded model path (to avoid redundant reloads).
+    _last_loaded_path: str = ""
+
+
+_4d_state = _FourDPlaybackState()
+
+
+def set_flipbook_playback_model(model: TimeSampledSplatModel | None) -> None:
+    """Register a ``TimeSampledSplatModel`` for Sequencer-driven playback.
+
+    Call this after Flipbook training completes so the Sequencer panel can
+    display per-frame scrubbing controls and drive model selection.
+    """
+    _4d_state.active_model = model
+    _4d_state._last_loaded_path = ""
 
 
 def draw_sequencer_section(layout):
@@ -151,6 +176,52 @@ def draw_sequencer_section(layout):
     layout.spacing()
 
     _draw_video_export_section(layout, has_keyframes)
+
+    # 4D Flipbook playback section (shown only when a result model is registered).
+    if _4d_state.active_model is not None:
+        layout.spacing()
+        layout.separator()
+        layout.spacing()
+        _draw_4d_playback_section(layout)
+
+
+def _draw_4d_playback_section(layout):
+    """Draw Sequencer-driven 4D Flipbook playback controls."""
+    model = _4d_state.active_model
+    if model is None or not model:
+        return
+
+    layout.label("4D Flipbook Playback")
+    layout.text_disabled(f"{len(model)} frame(s) | "
+                         f"t={model.get_timestamp(0):.2f}s \u2013 "
+                         f"t={model.get_timestamp(len(model) - 1):.2f}s")
+    layout.spacing()
+
+    # Resolve current Sequencer time to nearest frame.
+    try:
+        current_time = lf.ui.get_current_time()
+    except AttributeError:
+        current_time = 0.0
+
+    frame_idx = model.get_model_index_for_time(current_time)
+    entry = model.get_entry(frame_idx)
+
+    layout.label(f"Active frame: {frame_idx + 1}/{len(model)}  "
+                 f"(t={entry.timestamp:.3f}s)")
+    layout.text_disabled(str(entry.model_path))
+
+    layout.spacing()
+    avail_w, _ = layout.get_content_region_avail()
+    if layout.button("Load Active Frame##4d", (avail_w, 0)):
+        # Request the application to load and display the nearest frame model.
+        try:
+            lf.ui.emit_event("flipbook_frame_load_requested", {
+                "model_path": str(entry.model_path),
+                "frame_index": frame_idx,
+                "timestamp": entry.timestamp,
+            })
+        except AttributeError:
+            lf.log_info(f"4D Playback: load frame {frame_idx} from {entry.model_path}")
 
 
 def _draw_video_export_section(layout, has_keyframes: bool):

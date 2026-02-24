@@ -10,6 +10,7 @@
 #include "core/path_utils.hpp"
 #include "core/splat_data_transform.hpp"
 #include "core/tensor/internal/memory_pool.hpp"
+#include "training/time_sampled_splat_model.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1203,7 +1204,62 @@ namespace lfs::core {
         return id;
     }
 
-    NodeId Scene::addCropBox(const std::string& name, const NodeId parent_id) {
+    NodeId Scene::addTimeSampledModel(const std::string& name,
+                                      std::shared_ptr<lfs::training::TimeSampledSplatModel> model,
+                                      const NodeId parent) {
+        if (!model) {
+            LOG_WARN("Cannot add time-sampled model node '{}': model is null", name);
+            return NULL_NODE;
+        }
+
+        std::string unique_name = name;
+        if (name_to_id_.contains(unique_name)) {
+            int counter = 2;
+            while (name_to_id_.contains(unique_name)) {
+                unique_name = name + "_" + std::to_string(counter++);
+            }
+        }
+
+        const NodeId id = next_node_id_++;
+        auto node = std::make_unique<SceneNode>();
+        node->id = id;
+        node->parent_id = parent;
+        node->type = NodeType::TIME_SAMPLED_SPLAT;
+        node->name = unique_name;
+        node->time_sampled_model = std::move(model);
+
+        if (parent != NULL_NODE) {
+            if (auto* p = getNodeById(parent)) {
+                p->children.push_back(id);
+            }
+        }
+
+        id_to_index_[id] = nodes_.size();
+        name_to_id_[unique_name] = id;
+        node->initObservables(this);
+        nodes_.push_back(std::move(node));
+        notifyMutation(MutationType::NODE_ADDED);
+
+        LOG_DEBUG("Added time-sampled model node '{}' (id={}, {} frames)",
+                  unique_name, id, nodes_.back()->time_sampled_model->size());
+        return id;
+    }
+
+    lfs::training::TimeSampledSplatModel* Scene::getTimeSampledModel(const std::string& name) {
+        auto* node = getMutableNode(name);
+        if (!node || node->type != NodeType::TIME_SAMPLED_SPLAT)
+            return nullptr;
+        return node->time_sampled_model.get();
+    }
+
+    const lfs::training::TimeSampledSplatModel* Scene::getTimeSampledModel(const std::string& name) const {
+        const auto* node = getNode(name);
+        if (!node || node->type != NodeType::TIME_SAMPLED_SPLAT)
+            return nullptr;
+        return node->time_sampled_model.get();
+    }
+
+
         assert(parent_id != NULL_NODE && "CropBox must have a parent splat node");
 
         const auto* parent = getNodeById(parent_id);
