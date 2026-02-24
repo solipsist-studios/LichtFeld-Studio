@@ -247,6 +247,7 @@ set(TEST_FILES
     test_mesh_loader.cpp
     test_rotated_sh_correctness.cpp
     test_global_time_context.cpp
+    test_fourd_loader.cpp
 )
 
 # Build test sources list

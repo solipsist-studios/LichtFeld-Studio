@@ -147,13 +147,16 @@ namespace lfs::python {
                 py_result.warnings = result->warnings;
                 py_result.scene_center = PyTensor(result->scene_center, false);
 
-                if (std::holds_alternative<std::shared_ptr<core::SplatData>>(result->data)) {
-                    py_result.splat_data = std::get<std::shared_ptr<core::SplatData>>(result->data);
-                } else {
-                    auto& scene = std::get<io::LoadedScene>(result->data);
-                    py_result.cameras = std::move(scene.cameras);
-                    py_result.point_cloud = std::move(scene.point_cloud);
+                if (auto* sd = std::get_if<std::shared_ptr<core::SplatData>>(&result->data)) {
+                    py_result.splat_data = *sd;
+                } else if (auto* ls = std::get_if<io::LoadedScene>(&result->data)) {
+                    py_result.cameras = std::move(ls->cameras);
+                    py_result.point_cloud = std::move(ls->point_cloud);
+                } else if (auto* ds4d = std::get_if<io::Loaded4DDataset>(&result->data)) {
+                    // Expose the fixed cameras so Python callers can inspect the dataset.
+                    py_result.cameras = std::move(ds4d->cameras);
                 }
+                // std::shared_ptr<core::MeshData> — no Python representation yet, leave empty.
 
                 return py_result;
             },

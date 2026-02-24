@@ -9,6 +9,7 @@
 #include "io/loaders/blender_loader.hpp"
 #include "io/loaders/checkpoint_loader.hpp"
 #include "io/loaders/colmap_loader.hpp"
+#include "io/loaders/fourd_loader.hpp"
 #include "io/loaders/mesh_loader.hpp"
 #include "io/loaders/ply_loader.hpp"
 #include "io/loaders/sogs_loader.hpp"
@@ -25,6 +26,7 @@ namespace lfs::io {
         registry_->registerLoader(std::make_unique<SogLoader>());
         registry_->registerLoader(std::make_unique<SpzLoader>());
         registry_->registerLoader(std::make_unique<CheckpointLoader>());
+        registry_->registerLoader(std::make_unique<FourDLoader>());
         registry_->registerLoader(std::make_unique<ColmapLoader>());
         registry_->registerLoader(std::make_unique<BlenderLoader>());
         registry_->registerLoader(std::make_unique<MeshLoader>());
