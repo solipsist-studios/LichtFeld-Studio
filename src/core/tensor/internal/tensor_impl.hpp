@@ -615,11 +615,12 @@ namespace lfs::core {
             // Compute broadcast shape
             auto broadcast_shape = lhs.broadcast_shape(rhs.shape());
 
-            // Create and return the binary expression with promoted dtype
-            Tensor result = BinaryExpr<TensorLeaf, TensorLeaf, Op>(
+            // Evaluate eagerly — binary ops can't be fused by the pointwise system
+            auto expr = BinaryExpr<TensorLeaf, TensorLeaf, Op>(
                 TensorLeaf(lhs), TensorLeaf(rhs), op,
                 broadcast_shape, lhs.device(), result_dtype);
-            link_deferred_result_to_inputs(result, {lhs.lazy_expr_id(), rhs.lazy_expr_id()});
+            Tensor result = expr.eval();
+            internal::lazy_ir_record_binary(lhs, rhs, result, "binary");
             return result;
         }
 
@@ -640,11 +641,11 @@ namespace lfs::core {
             // Compute broadcast shape
             auto broadcast_shape = lhs.broadcast_shape(rhs.shape());
 
-            // Return Bool tensor (comparison result)
-            Tensor result = BinaryExpr<TensorLeaf, TensorLeaf, Op>(
+            auto expr = BinaryExpr<TensorLeaf, TensorLeaf, Op>(
                 TensorLeaf(lhs), TensorLeaf(rhs), op,
                 broadcast_shape, lhs.device(), DataType::Bool);
-            link_deferred_result_to_inputs(result, {lhs.lazy_expr_id(), rhs.lazy_expr_id()});
+            Tensor result = expr.eval();
+            internal::lazy_ir_record_binary(lhs, rhs, result, "comparison");
             return result;
         }
 
