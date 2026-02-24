@@ -11,7 +11,6 @@
 #include <cassert>
 #include <cuda_runtime.h>
 #include <spdlog/spdlog.h>
-#include <array>
 
 namespace lfs::training {
 
@@ -673,8 +672,7 @@ namespace lfs::training {
             v_sh_coeffs_ptr,
             densification_info_ptr,
             pixel_error_map_ptr,
-            stream
-        );
+            stream);
 
         // ============ Chain rule for activation functions ============
         // gsplat backward returns gradients w.r.t. activated parameters
