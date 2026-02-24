@@ -1015,7 +1015,8 @@ namespace lfs::vis {
             .settings = rendering_manager_->getSettings(),
             .viewport_region = has_viewport_region ? &viewport_region : nullptr,
             .has_focus = gui_manager_ && gui_manager_->isViewportFocused(),
-            .scene_manager = scene_manager_.get()};
+            .scene_manager = scene_manager_.get(),
+            .current_time = global_time_context_.current_time};
 
         if (gui_manager_) {
             rendering_manager_->setCropboxGizmoActive(gui_manager_->gizmo().isCropboxGizmoActive());
