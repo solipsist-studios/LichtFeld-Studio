@@ -9,7 +9,7 @@
 #include "io/loaders/blender_loader.hpp"
 #include "io/loaders/checkpoint_loader.hpp"
 #include "io/loaders/colmap_loader.hpp"
-#include "io/loaders/fourd_loader.hpp"
+#include "io/loaders/four_d_loader.hpp"
 #include "io/loaders/mesh_loader.hpp"
 #include "io/loaders/ply_loader.hpp"
 #include "io/loaders/sogs_loader.hpp"

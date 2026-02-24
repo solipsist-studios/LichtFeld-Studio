@@ -2,7 +2,7 @@
  *
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
-#include "io/loaders/fourd_loader.hpp"
+#include "io/loaders/four_d_loader.hpp"
 #include "core/camera.hpp"
 #include "core/logger.hpp"
 #include "core/path_utils.hpp"

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
- * @file test_fourd_loader.cpp
+ * @file test_four_d_loader.cpp
  * @brief Unit and integration tests for the 4D dataset loader (FourDLoader).
  *
  * Tests cover:
@@ -15,7 +15,7 @@
  */
 
 #include "io/loader.hpp"
-#include "io/loaders/fourd_loader.hpp"
+#include "io/loaders/four_d_loader.hpp"
 #include "training/sequence_dataset.hpp"
 
 #include <filesystem>
