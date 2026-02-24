@@ -21,25 +21,30 @@
 #include <utility>
 #include <vector>
 
+namespace lfs::training {
+    class TimeSampledSplatModel;
+} // namespace lfs::training
+
 namespace lfs::core {
 
     using NodeId = int32_t;
     constexpr NodeId NULL_NODE = -1;
 
     enum class NodeType : uint8_t {
-        SPLAT,          // Contains gaussian splat data
-        POINTCLOUD,     // Contains point cloud (pre-training, can be cropped)
-        GROUP,          // Empty transform node for organization
-        CROPBOX,        // Crop box visualization (child of SPLAT, POINTCLOUD, or DATASET)
-        ELLIPSOID,      // Ellipsoid selection (child of SPLAT, POINTCLOUD, or DATASET)
-        DATASET,        // Root node for training dataset (contains cameras + model)
-        CAMERA_GROUP,   // Container for camera nodes (e.g., "Training", "Validation")
-        CAMERA,         // Individual camera from dataset (may have mask_path)
-        IMAGE_GROUP,    // Container for image nodes
-        IMAGE,          // Individual image file reference (not loaded, just path)
-        MESH,           // Triangle mesh (imported via Assimp, processed via OpenMesh)
-        KEYFRAME_GROUP, // Container for keyframe nodes (camera animation)
-        KEYFRAME        // Individual camera animation keyframe
+        SPLAT,              // Contains gaussian splat data
+        POINTCLOUD,         // Contains point cloud (pre-training, can be cropped)
+        GROUP,              // Empty transform node for organization
+        CROPBOX,            // Crop box visualization (child of SPLAT, POINTCLOUD, or DATASET)
+        ELLIPSOID,          // Ellipsoid selection (child of SPLAT, POINTCLOUD, or DATASET)
+        DATASET,            // Root node for training dataset (contains cameras + model)
+        CAMERA_GROUP,       // Container for camera nodes (e.g., "Training", "Validation")
+        CAMERA,             // Individual camera from dataset (may have mask_path)
+        IMAGE_GROUP,        // Container for image nodes
+        IMAGE,              // Individual image file reference (not loaded, just path)
+        MESH,               // Triangle mesh (imported via Assimp, processed via OpenMesh)
+        KEYFRAME_GROUP,     // Container for keyframe nodes (camera animation)
+        KEYFRAME,           // Individual camera animation keyframe
+        TIME_SAMPLED_SPLAT  // Sequence of per-frame Gaussian Splat models (Flipbook/4D, Milestone 2)
     };
 
     struct CropBoxData {
@@ -101,6 +106,7 @@ namespace lfs::core {
         std::unique_ptr<CropBoxData> cropbox;
         std::unique_ptr<EllipsoidData> ellipsoid;
         std::unique_ptr<KeyframeData> keyframe;
+        std::shared_ptr<lfs::training::TimeSampledSplatModel> time_sampled_model; ///< Flipbook/4D sequence (Milestone 2)
         size_t gaussian_count = 0;
         glm::vec3 centroid{0.0f};
 
@@ -183,6 +189,13 @@ namespace lfs::core {
         NodeId addCamera(const std::string& name, NodeId parent, std::shared_ptr<lfs::core::Camera> camera);
         NodeId addKeyframeGroup(const std::string& name, NodeId parent = NULL_NODE);
         NodeId addKeyframe(const std::string& name, NodeId parent, std::unique_ptr<KeyframeData> data);
+        /// Add a time-sampled Gaussian Splat sequence (Flipbook/4D result, Milestone 2).
+        NodeId addTimeSampledModel(const std::string& name,
+                                   std::shared_ptr<lfs::training::TimeSampledSplatModel> model,
+                                   NodeId parent = NULL_NODE);
+        /// Return the time-sampled model stored in the node with the given name, or nullptr.
+        [[nodiscard]] lfs::training::TimeSampledSplatModel* getTimeSampledModel(const std::string& name);
+        [[nodiscard]] const lfs::training::TimeSampledSplatModel* getTimeSampledModel(const std::string& name) const;
         void removeKeyframeNodes();
         void reparent(NodeId node, NodeId new_parent);
         [[nodiscard]] std::string duplicateNode(const std::string& name);

@@ -193,6 +193,34 @@ namespace lfs::core {
             std::vector<std::filesystem::path> python_scripts;
         };
 
+        // Training mode: standard single-model or Flipbook per-frame (Milestone 2).
+        enum class TrainingMode {
+            Standard, // Train a single 3D splat model (default).
+            Flipbook  // Train one model per discrete time step in a 4D dataset.
+        };
+
+        /**
+         * @brief Parameters for Flipbook (per-time-step) training mode (Milestone 2).
+         *
+         * These control how the outer loop over discrete time steps is executed when
+         * TrainingMode::Flipbook is selected.
+         */
+        struct LFS_CORE_API FlipbookParameters {
+            TrainingMode mode = TrainingMode::Standard;
+
+            /// Train every K-th time step (1 = train all, 2 = every other, etc.).
+            int keyframe_stride = 1;
+
+            /// If true, initialise each time step from the previous frame's final model.
+            bool warm_start = false;
+
+            /// Per-step iteration budget (0 = use OptimizationParameters::iterations).
+            size_t iterations_per_frame = 0;
+
+            /// Export per-frame models after training (PLY files + manifest JSON).
+            bool export_per_frame = false;
+        };
+
         // Output format for conversion tool
         enum class OutputFormat { PLY,
                                   SOG,
