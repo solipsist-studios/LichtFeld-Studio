@@ -65,8 +65,41 @@ namespace lfs::rendering {
 
         constexpr float NEAR_PLANE = 0.01f;
 
-        const auto& w2c = viewpoint_camera.world_view_transform();
-        const auto& cam_pos = viewpoint_camera.cam_position();
+        // Build world-to-camera transform matrix [4, 4]
+        // w2c = [R | t]
+        //       [0 | 1]
+        const auto& R = viewpoint_camera.R(); // [3, 3] rotation
+        const auto& T = viewpoint_camera.T(); // [3] translation
+
+        // Create w2c matrix [4, 4] on CPU
+        std::vector<float> w2c_data(16, 0.0f);
+
+        // Copy rotation (first 3x3)
+        auto R_cpu = R.cpu();
+        const float* R_ptr = R_cpu.ptr<float>();
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                w2c_data[i * 4 + j] = R_ptr[i * 3 + j];
+            }
+        }
+
+        // Copy translation (last column of first 3 rows)
+        auto T_cpu = T.cpu();
+        const float* T_ptr = T_cpu.ptr<float>();
+        w2c_data[0 * 4 + 3] = T_ptr[0];
+        w2c_data[1 * 4 + 3] = T_ptr[1];
+        w2c_data[2 * 4 + 3] = T_ptr[2];
+
+        // Set last row [0, 0, 0, 1]
+        w2c_data[3 * 4 + 3] = 1.0f;
+
+        Tensor w2c = Tensor::from_vector(w2c_data, {4, 4}, lfs::core::Device::CPU).cuda();
+
+        // Camera position is -R^T @ t
+        // We can compute this from the existing R and T
+        auto R_t = R.transpose(0, 1);                 // R^T
+        auto T_expanded = T.unsqueeze(1);             // [3, 1]
+        auto cam_pos = -R_t.mm(T_expanded).squeeze(); // [3]
 
         // Get model data
         const auto& means = gaussian_model.means_raw();
