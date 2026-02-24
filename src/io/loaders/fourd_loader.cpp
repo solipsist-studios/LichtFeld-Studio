@@ -179,15 +179,24 @@ namespace lfs::io {
                 return {};
             };
 
-            if (auto r = require_field("id"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("width"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("height"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("focal_x"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("focal_y"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("center_x"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("center_y"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("R"); !r) return std::unexpected(r.error());
-            if (auto r = require_field("T"); !r) return std::unexpected(r.error());
+            if (auto r = require_field("id"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("width"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("height"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("focal_x"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("focal_y"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("center_x"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("center_y"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("R"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_field("T"); !r)
+                return std::unexpected(r.error());
 
             const std::string cam_id = jc["id"].get<std::string>();
             if (cam_id_to_idx.count(cam_id)) {
@@ -220,10 +229,10 @@ namespace lfs::io {
                 focal_y,
                 center_x,
                 center_y,
-                empty_dist,  // radial distortion (none)
-                empty_dist,  // tangential distortion (none)
+                empty_dist, // radial distortion (none)
+                empty_dist, // tangential distortion (none)
                 lfs::core::CameraModelType::PINHOLE,
-                cam_id,      // image_name = camera id (no per-frame path at this level)
+                cam_id,                  // image_name = camera id (no per-frame path at this level)
                 std::filesystem::path{}, // image_path filled per-frame
                 std::filesystem::path{}, // mask_path filled per-frame
                 width,
@@ -269,9 +278,12 @@ namespace lfs::io {
                 return {};
             };
 
-            if (auto r = require_frame_field("time_index"); !r) return std::unexpected(r.error());
-            if (auto r = require_frame_field("camera_id"); !r) return std::unexpected(r.error());
-            if (auto r = require_frame_field("image_path"); !r) return std::unexpected(r.error());
+            if (auto r = require_frame_field("time_index"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_frame_field("camera_id"); !r)
+                return std::unexpected(r.error());
+            if (auto r = require_frame_field("image_path"); !r)
+                return std::unexpected(r.error());
 
             const size_t time_index = jf["time_index"].get<size_t>();
             const std::string cam_id = jf["camera_id"].get<std::string>();
@@ -388,8 +400,7 @@ namespace lfs::io {
                     .timestamps = std::move(timestamps),
                     .frames = {}},
                 .loader_used = name(),
-                .load_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    end_time - start_time),
+                .load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time),
                 .warnings = {"Validation mode - frames not loaded"}};
         }
 
@@ -407,8 +418,7 @@ namespace lfs::io {
                 .timestamps = std::move(timestamps),
                 .frames = std::move(frame_table)},
             .loader_used = name(),
-            .load_time =
-                std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time),
+            .load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time),
             .warnings = std::move(warnings)};
     }
 

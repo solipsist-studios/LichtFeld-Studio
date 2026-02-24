@@ -39,7 +39,7 @@ namespace lfs::io {
         Unknown,
         COLMAP,
         Transforms,
-        Sequence  // 4D multi-camera sequence dataset (dataset4d.json)
+        Sequence // 4D multi-camera sequence dataset (dataset4d.json)
     };
 
     // Public types that clients need
@@ -113,12 +113,14 @@ namespace lfs::io {
         /// Dimensions: frames.size() == timestamps.size(),
         ///             frames[t].size() == cameras.size() for all t.
         std::vector<std::vector<std::pair<std::filesystem::path,
-                                          std::optional<std::filesystem::path>>>> frames;
+                                          std::optional<std::filesystem::path>>>>
+            frames;
     };
 
     struct LoadResult {
         std::variant<std::shared_ptr<SplatData>, LoadedScene,
-                     std::shared_ptr<MeshData>, Loaded4DDataset> data;
+                     std::shared_ptr<MeshData>, Loaded4DDataset>
+            data;
         Tensor scene_center;
         bool images_have_alpha = false;
         std::string loader_used;

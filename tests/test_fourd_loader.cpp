@@ -37,104 +37,104 @@ using namespace lfs::training;
 
 namespace {
 
-/// Write a string to a file (creating parent directories as needed).
-void write_file(const fs::path& path, const std::string& content) {
-    fs::create_directories(path.parent_path());
-    std::ofstream f(path, std::ios::binary);
-    ASSERT_TRUE(f.is_open()) << "Cannot open " << path;
-    f << content;
-}
+    /// Write a string to a file (creating parent directories as needed).
+    void write_file(const fs::path& path, const std::string& content) {
+        fs::create_directories(path.parent_path());
+        std::ofstream f(path, std::ios::binary);
+        ASSERT_TRUE(f.is_open()) << "Cannot open " << path;
+        f << content;
+    }
 
-/// Build a minimal valid dataset4d.json string for @p num_cams cameras and
-/// @p num_times time steps.  Image files are given placeholder paths
-/// (validate_only mode does not check for on-disk existence).
-std::string make_manifest(int num_cams, int num_times,
-                          bool include_timestamps = true,
-                          bool include_masks = false) {
-    std::string j = "{\n  \"version\": 1,\n";
+    /// Build a minimal valid dataset4d.json string for @p num_cams cameras and
+    /// @p num_times time steps.  Image files are given placeholder paths
+    /// (validate_only mode does not check for on-disk existence).
+    std::string make_manifest(int num_cams, int num_times,
+                              bool include_timestamps = true,
+                              bool include_masks = false) {
+        std::string j = "{\n  \"version\": 1,\n";
 
-    if (include_timestamps) {
-        j += "  \"timestamps\": [";
-        for (int t = 0; t < num_times; ++t) {
-            j += std::format("{}{:.3f}", t > 0 ? "," : "", t * 0.033f);
+        if (include_timestamps) {
+            j += "  \"timestamps\": [";
+            for (int t = 0; t < num_times; ++t) {
+                j += std::format("{}{:.3f}", t > 0 ? "," : "", t * 0.033f);
+            }
+            j += "],\n";
         }
-        j += "],\n";
-    }
 
-    j += "  \"cameras\": [\n";
-    for (int c = 0; c < num_cams; ++c) {
-        j += std::format(
-            "    {{\n"
-            "      \"id\": \"cam_{:03d}\",\n"
-            "      \"width\": 640, \"height\": 480,\n"
-            "      \"focal_x\": 320.0, \"focal_y\": 320.0,\n"
-            "      \"center_x\": 320.0, \"center_y\": 240.0,\n"
-            "      \"R\": [[1,0,0],[0,1,0],[0,0,1]],\n"
-            "      \"T\": [0.0, 0.0, 0.0]\n"
-            "    }}{}",
-            c, c + 1 < num_cams ? "," : "");
-        j += "\n";
-    }
-    j += "  ],\n";
-
-    j += "  \"frames\": [\n";
-    bool first = true;
-    for (int t = 0; t < num_times; ++t) {
+        j += "  \"cameras\": [\n";
         for (int c = 0; c < num_cams; ++c) {
-            if (!first)
-                j += ",\n";
-            first = false;
-
             j += std::format(
                 "    {{\n"
-                "      \"time_index\": {},\n"
-                "      \"camera_id\": \"cam_{:03d}\",\n"
-                "      \"image_path\": \"images/cam_{:03d}/frame_{:04d}.jpg\"",
-                t, c, c, t);
-
-            if (include_masks) {
-                j += std::format(
-                    ",\n      \"mask_path\": \"masks/cam_{:03d}/frame_{:04d}.png\"", c, t);
-            }
-
-            j += "\n    }";
+                "      \"id\": \"cam_{:03d}\",\n"
+                "      \"width\": 640, \"height\": 480,\n"
+                "      \"focal_x\": 320.0, \"focal_y\": 320.0,\n"
+                "      \"center_x\": 320.0, \"center_y\": 240.0,\n"
+                "      \"R\": [[1,0,0],[0,1,0],[0,0,1]],\n"
+                "      \"T\": [0.0, 0.0, 0.0]\n"
+                "    }}{}",
+                c, c + 1 < num_cams ? "," : "");
+            j += "\n";
         }
-    }
-    j += "\n  ]\n}\n";
-    return j;
-}
+        j += "  ],\n";
 
-/// Create a temporary directory, write dataset4d.json, and optionally touch
-/// the referenced image (and mask) files so existence checks pass.
-struct TmpDataset {
-    fs::path root;
-
-    explicit TmpDataset(const std::string& tag) {
-        root = fs::temp_directory_path() / ("lfs_test_4d_" + tag);
-        fs::remove_all(root);
-        fs::create_directories(root);
-    }
-
-    ~TmpDataset() {
-        std::error_code ec;
-        fs::remove_all(root, ec);
-    }
-
-    void write_manifest(const std::string& content) {
-        write_file(root / "dataset4d.json", content);
-    }
-
-    /// Touch the image files that would be referenced by make_manifest().
-    void touch_images(int num_cams, int num_times) {
+        j += "  \"frames\": [\n";
+        bool first = true;
         for (int t = 0; t < num_times; ++t) {
             for (int c = 0; c < num_cams; ++c) {
-                const fs::path img = root / std::format("images/cam_{:03d}/frame_{:04d}.jpg", c, t);
-                fs::create_directories(img.parent_path());
-                std::ofstream f(img); // empty file is fine
+                if (!first)
+                    j += ",\n";
+                first = false;
+
+                j += std::format(
+                    "    {{\n"
+                    "      \"time_index\": {},\n"
+                    "      \"camera_id\": \"cam_{:03d}\",\n"
+                    "      \"image_path\": \"images/cam_{:03d}/frame_{:04d}.jpg\"",
+                    t, c, c, t);
+
+                if (include_masks) {
+                    j += std::format(
+                        ",\n      \"mask_path\": \"masks/cam_{:03d}/frame_{:04d}.png\"", c, t);
+                }
+
+                j += "\n    }";
             }
         }
+        j += "\n  ]\n}\n";
+        return j;
     }
-};
+
+    /// Create a temporary directory, write dataset4d.json, and optionally touch
+    /// the referenced image (and mask) files so existence checks pass.
+    struct TmpDataset {
+        fs::path root;
+
+        explicit TmpDataset(const std::string& tag) {
+            root = fs::temp_directory_path() / ("lfs_test_4d_" + tag);
+            fs::remove_all(root);
+            fs::create_directories(root);
+        }
+
+        ~TmpDataset() {
+            std::error_code ec;
+            fs::remove_all(root, ec);
+        }
+
+        void write_manifest(const std::string& content) {
+            write_file(root / "dataset4d.json", content);
+        }
+
+        /// Touch the image files that would be referenced by make_manifest().
+        void touch_images(int num_cams, int num_times) {
+            for (int t = 0; t < num_times; ++t) {
+                for (int c = 0; c < num_cams; ++c) {
+                    const fs::path img = root / std::format("images/cam_{:03d}/frame_{:04d}.jpg", c, t);
+                    fs::create_directories(img.parent_path());
+                    std::ofstream f(img); // empty file is fine
+                }
+            }
+        }
+    };
 
 } // namespace
 
@@ -426,9 +426,9 @@ TEST(SequenceDatasetTest, GetTimeStepForTimeExactMatch) {
 }
 
 TEST(SequenceDatasetTest, GetTimeStepForTimeNearestNeighbour) {
-    auto ds = make_sequence_dataset(1, 4); // ts: 0.0, 0.5, 1.0, 1.5
-    EXPECT_EQ(ds->get_time_step_for_time(0.24f), 0u); // closer to 0.0
-    EXPECT_EQ(ds->get_time_step_for_time(0.26f), 1u); // closer to 0.5
+    auto ds = make_sequence_dataset(1, 4);             // ts: 0.0, 0.5, 1.0, 1.5
+    EXPECT_EQ(ds->get_time_step_for_time(0.24f), 0u);  // closer to 0.0
+    EXPECT_EQ(ds->get_time_step_for_time(0.26f), 1u);  // closer to 0.5
     EXPECT_EQ(ds->get_time_step_for_time(100.0f), 3u); // beyond end → last
 }
 
