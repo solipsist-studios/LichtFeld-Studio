@@ -79,6 +79,12 @@ namespace lfs::io {
 
                 // Check for COLMAP dataset
                 if (safe_is_directory(path)) {
+                    // Check for 4D dataset
+                    if (safe_exists(path / "dataset4d.json")) {
+                        LOG_TRACE("4D dataset detected: {}", lfs::core::path_to_utf8(path));
+                        return true;
+                    }
+
                     auto colmap_paths = get_colmap_search_paths(path);
                     const std::vector<std::string> colmap_markers = {
                         "cameras.bin", "cameras.txt", "images.bin", "images.txt"};
@@ -176,6 +182,12 @@ namespace lfs::io {
             }
         }
 
+        // Check for 4D dataset
+        if (safe_exists(path / "dataset4d.json")) {
+            LOG_TRACE("4D dataset detected at: {}", lfs::core::path_to_utf8(path));
+            return true;
+        }
+
         // Check for COLMAP markers in any standard location
         auto colmap_paths = get_colmap_search_paths(path);
         const std::vector<std::string> colmap_markers = {
@@ -240,6 +252,11 @@ namespace lfs::io {
             if (has_sog_files) {
                 return DatasetType::Unknown; // SOG is not a dataset type
             }
+        }
+
+        // Check for 4D sequence dataset
+        if (safe_exists(path / "dataset4d.json")) {
+            return DatasetType::Sequence;
         }
 
         // Check for COLMAP markers

@@ -13,6 +13,7 @@
 #include "core/splat_data_transform.hpp"
 #include "dataset.hpp"
 #include "io/loader.hpp"
+#include "sequence_dataset.hpp"
 #include <format>
 
 namespace lfs::training {
@@ -210,6 +211,31 @@ namespace lfs::training {
                     mesh_name = "mesh";
                 scene.addMesh(mesh_name, data);
                 LOG_INFO("Loaded mesh '{}' into scene", mesh_name);
+                return {};
+
+            } else if constexpr (std::is_same_v<T, lfs::io::Loaded4DDataset>) {
+                // Populate cameras (fixed, constant over time) and dataset hierarchy.
+                std::string dataset_name =
+                    lfs::core::path_to_utf8(params.dataset.data_path.filename());
+                if (dataset_name.empty())
+                    dataset_name =
+                        lfs::core::path_to_utf8(params.dataset.data_path.parent_path().filename());
+                if (dataset_name.empty())
+                    dataset_name = "4D Dataset";
+
+                const auto dataset_id = scene.addDataset(dataset_name);
+                const auto cameras_group_id = scene.addGroup("Cameras", dataset_id);
+                const auto cam_group_id = scene.addCameraGroup(
+                    std::format("Cameras ({})", data.cameras.size()),
+                    cameras_group_id,
+                    data.cameras.size());
+
+                for (const auto& cam : data.cameras) {
+                    scene.addCamera(cam->image_name(), cam_group_id, cam);
+                }
+
+                LOG_INFO("Loaded 4D dataset '{}' into scene: {} cameras x {} time steps",
+                         dataset_name, data.cameras.size(), data.timestamps.size());
                 return {};
 
             } else {
@@ -508,6 +534,30 @@ namespace lfs::training {
                     mesh_name = "mesh";
                 scene.addMesh(mesh_name, data);
                 LOG_INFO("Loaded mesh '{}' into scene", mesh_name);
+                return {};
+
+            } else if constexpr (std::is_same_v<T, lfs::io::Loaded4DDataset>) {
+                std::string dataset_name =
+                    lfs::core::path_to_utf8(params.dataset.data_path.filename());
+                if (dataset_name.empty())
+                    dataset_name =
+                        lfs::core::path_to_utf8(params.dataset.data_path.parent_path().filename());
+                if (dataset_name.empty())
+                    dataset_name = "4D Dataset";
+
+                const auto dataset_id = scene.addDataset(dataset_name);
+                const auto cameras_group_id = scene.addGroup("Cameras", dataset_id);
+                const auto cam_group_id = scene.addCameraGroup(
+                    std::format("Cameras ({})", data.cameras.size()),
+                    cameras_group_id,
+                    data.cameras.size());
+
+                for (const auto& cam : data.cameras) {
+                    scene.addCamera(cam->image_name(), cam_group_id, cam);
+                }
+
+                LOG_INFO("Applied 4D dataset '{}' to scene: {} cameras x {} time steps",
+                         dataset_name, data.cameras.size(), data.timestamps.size());
                 return {};
 
             } else {

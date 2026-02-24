@@ -396,6 +396,9 @@ namespace lfs::vis::gui {
                             import_state_.num_points = data ? data->vertex_count() : 0;
                             import_state_.num_images = 0;
                             import_state_.is_mesh = true;
+                        } else if constexpr (std::is_same_v<T, lfs::io::Loaded4DDataset>) {
+                            import_state_.num_images = data.cameras.size();
+                            import_state_.num_points = 0;
                         }
                     },
                                import_state_.load_result->data);
