@@ -11,6 +11,7 @@
 #include "core/event_bridge/localization_manager.hpp"
 #include "core/events.hpp"
 #include "core/logger.hpp"
+#include "core/services.hpp"
 #include "gui/string_keys.hpp"
 #include "rendering/rendering.hpp"
 #include "rendering/rendering_manager.hpp"
@@ -103,6 +104,17 @@ namespace lfs::vis::gui {
         controller_.update(ImGui::GetIO().DeltaTime);
 
         const bool is_playing = controller_.isPlaying() && !controller_.timeline().empty();
+
+        // Publish playhead to the global time context so all subsystems
+        // (viewport, rendering, future 4D dataset/model systems) can query it.
+        // Only emit TimeChanged when the playhead actually moves to avoid flooding the event bus.
+        if (auto* gtc = services().timeOrNull()) {
+            const float new_time = controller_.playhead();
+            if (new_time != gtc->current_time) {
+                gtc->current_time = new_time;
+                lfs::core::events::state::TimeChanged{.time = new_time}.emit();
+            }
+        }
 
         if (auto* const rm = viewer_->getRenderingManager()) {
             rm->setOverlayAnimationActive(is_playing);

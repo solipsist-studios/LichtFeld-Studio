@@ -19,7 +19,6 @@ add_library(lfs_visualizer ${LFS_VIS_LIB_TYPE}
         core/main_loop.cpp
         core/data_loading_service.cpp
         core/editor_context.cpp
-        core/global_time_context.cpp
         core/parameter_manager.cpp
         core/services.cpp
 
