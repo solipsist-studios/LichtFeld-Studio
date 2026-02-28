@@ -1414,12 +1414,17 @@ namespace lfs::training {
                             } else {
                                 ssim_map = photometric_loss_.ssim_workspace().ssim_map;
                             }
-                            tile_error_map = ssim_map.neg()
-                                                 .add(1.0f)
-                                                 .mean({1}, false)
-                                                 .squeeze(0)
-                                                 .clamp_min(0.0f)
-                                                 .contiguous();
+                            {
+                                const int H = static_cast<int>(ssim_map.shape()[2]);
+                                const int W = static_cast<int>(ssim_map.shape()[3]);
+                                if (!densification_error_map_.is_valid() ||
+                                    densification_error_map_.shape()[0] != static_cast<size_t>(H) ||
+                                    densification_error_map_.shape()[1] != static_cast<size_t>(W)) {
+                                    densification_error_map_ = core::Tensor::empty({H, W}, core::Device::CUDA);
+                                }
+                                lfs::training::kernels::launch_ssim_to_error_map(ssim_map, densification_error_map_);
+                                tile_error_map = densification_error_map_;
+                            }
                         } else if (use_ssim_error) {
                             // lambda_dssim == 0 but MCMC needs SSIM error: standalone pass
                             lfs::core::Tensor pred_chw = corrected_image;
@@ -1434,12 +1439,17 @@ namespace lfs::training {
                             (void)ssim_value;
                             (void)ssim_ctx;
                             const auto& fallback_ssim_map = densification_ssim_workspace_.ssim_map;
-                            tile_error_map = fallback_ssim_map.neg()
-                                                 .add(1.0f)
-                                                 .mean({1}, false)
-                                                 .squeeze(0)
-                                                 .clamp_min(0.0f)
-                                                 .contiguous();
+                            {
+                                const int H = static_cast<int>(fallback_ssim_map.shape()[2]);
+                                const int W = static_cast<int>(fallback_ssim_map.shape()[3]);
+                                if (!densification_error_map_.is_valid() ||
+                                    densification_error_map_.shape()[0] != static_cast<size_t>(H) ||
+                                    densification_error_map_.shape()[1] != static_cast<size_t>(W)) {
+                                    densification_error_map_ = core::Tensor::empty({H, W}, core::Device::CUDA);
+                                }
+                                lfs::training::kernels::launch_ssim_to_error_map(fallback_ssim_map, densification_error_map_);
+                                tile_error_map = densification_error_map_;
+                            }
                         } else {
                             const lfs::core::Tensor abs_diff = (corrected_image - gt_tile).abs();
                             if (abs_diff.ndim() == 3 && abs_diff.shape()[0] == 3) {

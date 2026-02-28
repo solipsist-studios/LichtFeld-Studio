@@ -532,7 +532,11 @@ namespace lfs::training {
                 info.ndim() == 2 &&
                 info.shape()[0] >= 2 &&
                 info.shape()[1] == _error_score_max.numel()) {
-                _error_score_max = _error_score_max.maximum(info[1]);
+                const float* error_row = info.ptr<float>() + info.shape()[1];
+                lfs::training::mcmc::launch_elementwise_max_inplace(
+                    _error_score_max.ptr<float>(),
+                    error_row,
+                    _error_score_max.numel());
             }
 
             // Clear per-view accumulators; they are rebuilt by the next backward pass.

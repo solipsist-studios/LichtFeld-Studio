@@ -383,4 +383,20 @@ namespace lfs::training::mcmc {
         float min_opacity,
         void* stream = nullptr);
 
+    /**
+     * In-place element-wise maximum: a[i] = max(a[i], b[i])
+     *
+     * Replaces allocating maximum() call that creates a new tensor every iteration.
+     *
+     * @param a [N] - First tensor, modified in-place
+     * @param b [N] - Second tensor
+     * @param N - Number of elements
+     * @param stream - CUDA stream
+     */
+    void launch_elementwise_max_inplace(
+        float* a,
+        const float* b,
+        size_t N,
+        void* stream = nullptr);
+
 } // namespace lfs::training::mcmc

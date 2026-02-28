@@ -70,35 +70,42 @@ void fast_lfs::rasterization::backward(
     per_primitive_buffers.primitive_indices.selector = primitive_primitive_indices_selector;
     per_instance_buffers.primitive_indices.selector = instance_primitive_indices_selector;
 
-    // Backward blend
-    kernels::backward::blend_backward_cu<<<n_buckets, 32>>>(
-        per_tile_buffers.instance_ranges,
-        per_tile_buffers.bucket_offsets,
-        per_instance_buffers.primitive_indices.Current(),
-        per_primitive_buffers.mean2d,
-        per_primitive_buffers.conic_opacity,
-        per_primitive_buffers.color,
-        raw_opacities,
-        grad_image,
-        grad_alpha,
-        image,
-        alpha,
-        per_tile_buffers.max_n_contributions,
-        per_tile_buffers.n_contributions,
-        per_bucket_buffers.tile_index,
-        per_bucket_buffers.checkpoint_uint8,
-        grad_mean2d_helper,
-        grad_conic_helper,
-        grad_opacities_raw,
-        grad_sh_coefficients_0, // used to store intermediate gradients
-        densification_info,
-        densification_error_map,
-        n_buckets,
-        n_primitives,
-        width,
-        height,
-        grid.x,
-        mip_filter);
+    // Backward blend (template dispatch eliminates densification branch from inner loop)
+    auto launch_blend_backward = [&]<bool HAS_DENSIFICATION>() {
+        kernels::backward::blend_backward_cu<HAS_DENSIFICATION><<<n_buckets, 32>>>(
+            per_tile_buffers.instance_ranges,
+            per_tile_buffers.bucket_offsets,
+            per_instance_buffers.primitive_indices.Current(),
+            per_primitive_buffers.mean2d,
+            per_primitive_buffers.conic_opacity,
+            per_primitive_buffers.color,
+            raw_opacities,
+            grad_image,
+            grad_alpha,
+            image,
+            alpha,
+            per_tile_buffers.max_n_contributions,
+            per_tile_buffers.n_contributions,
+            per_bucket_buffers.tile_index,
+            per_bucket_buffers.checkpoint_uint8,
+            grad_mean2d_helper,
+            grad_conic_helper,
+            grad_opacities_raw,
+            grad_sh_coefficients_0, // used to store intermediate gradients
+            densification_info,
+            densification_error_map,
+            n_buckets,
+            n_primitives,
+            width,
+            height,
+            grid.x,
+            mip_filter);
+    };
+    if (densification_info != nullptr && densification_error_map != nullptr) {
+        launch_blend_backward.template operator()<true>();
+    } else {
+        launch_blend_backward.template operator()<false>();
+    }
     CHECK_CUDA(config::debug, "blend_backward")
 
     // Backward preprocess

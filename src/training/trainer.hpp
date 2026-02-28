@@ -307,6 +307,9 @@ namespace lfs::training {
         lfs::training::kernels::SSIMWorkspace densification_ssim_workspace_;
         lfs::training::kernels::MaskedFusedL1SSIMWorkspace masked_fused_workspace_;
 
+        // Pre-allocated error map buffer for densification (avoids per-iteration allocation)
+        core::Tensor densification_error_map_;
+
         // Metrics evaluator - handles all evaluation logic
         std::unique_ptr<lfs::training::MetricsEvaluator> evaluator_;
 

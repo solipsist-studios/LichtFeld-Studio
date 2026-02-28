@@ -1232,4 +1232,33 @@ namespace lfs::training::mcmc {
             min_opacity);
     }
 
+    __global__ void elementwise_max_inplace_kernel(
+        float* __restrict__ a,
+        const float* __restrict__ b,
+        size_t N) {
+
+        size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx >= N)
+            return;
+
+        a[idx] = fmaxf(a[idx], b[idx]);
+    }
+
+    void launch_elementwise_max_inplace(
+        float* a,
+        const float* b,
+        size_t N,
+        void* stream) {
+
+        if (N == 0)
+            return;
+
+        dim3 threads(256);
+        dim3 grid((N + threads.x - 1) / threads.x);
+
+        cudaStream_t cuda_stream = stream ? static_cast<cudaStream_t>(stream) : nullptr;
+
+        elementwise_max_inplace_kernel<<<grid, threads, 0, cuda_stream>>>(a, b, N);
+    }
+
 } // namespace lfs::training::mcmc
