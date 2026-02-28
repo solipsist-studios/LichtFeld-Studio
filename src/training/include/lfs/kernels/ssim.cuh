@@ -227,4 +227,10 @@ namespace lfs::training::kernels {
         const MaskedFusedL1SSIMContext& ctx,
         MaskedFusedL1SSIMWorkspace& workspace);
 
+    // Fused SSIM map → error map: error_map[i] = max(0, 1 - mean_c(ssim_map[c, i]))
+    // Replaces .neg().add(1).mean({1}).squeeze(0).clamp_min(0).contiguous() chain
+    void launch_ssim_to_error_map(
+        const lfs::core::Tensor& ssim_map,
+        lfs::core::Tensor& error_map);
+
 } // namespace lfs::training::kernels

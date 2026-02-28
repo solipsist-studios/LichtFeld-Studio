@@ -1744,4 +1744,53 @@ namespace lfs::training::kernels {
         return workspace.grad_img;
     }
 
+    // Fused SSIM map [1, C, H, W] → error map [H, W]
+    // error_map[i] = max(0, 1 - mean_c(ssim_map[c, i]))
+    namespace {
+        __global__ void ssim_to_error_map_kernel(
+            const float* __restrict__ ssim_map,
+            float* __restrict__ error_map,
+            int C, int H, int W) {
+
+            int idx = blockIdx.x * blockDim.x + threadIdx.x;
+            int HW = H * W;
+            if (idx >= HW)
+                return;
+
+            float sum = 0.0f;
+            for (int c = 0; c < C; ++c) {
+                sum += ssim_map[c * HW + idx];
+            }
+            float inv_c = 1.0f / static_cast<float>(C);
+            float err = 1.0f - sum * inv_c;
+            error_map[idx] = fmaxf(err, 0.0f);
+        }
+    } // namespace
+
+    void launch_ssim_to_error_map(
+        const lfs::core::Tensor& ssim_map,
+        lfs::core::Tensor& error_map) {
+
+        assert(ssim_map.ndim() == 4);
+        assert(ssim_map.shape()[0] == 1);
+
+        const int C = static_cast<int>(ssim_map.shape()[1]);
+        const int H = static_cast<int>(ssim_map.shape()[2]);
+        const int W = static_cast<int>(ssim_map.shape()[3]);
+        const int HW = H * W;
+
+        assert(error_map.ndim() == 2);
+        assert(error_map.shape()[0] == static_cast<size_t>(H));
+        assert(error_map.shape()[1] == static_cast<size_t>(W));
+
+        constexpr int THREADS = 256;
+        dim3 grid((HW + THREADS - 1) / THREADS);
+        dim3 block(THREADS);
+
+        ssim_to_error_map_kernel<<<grid, block>>>(
+            ssim_map.ptr<float>(),
+            error_map.ptr<float>(),
+            C, H, W);
+    }
+
 } // namespace lfs::training::kernels
