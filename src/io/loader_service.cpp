@@ -9,7 +9,6 @@
 #include "io/loaders/blender_loader.hpp"
 #include "io/loaders/checkpoint_loader.hpp"
 #include "io/loaders/colmap_loader.hpp"
-#include "io/loaders/four_d_loader.hpp"
 #include "io/loaders/mesh_loader.hpp"
 #include "io/loaders/ply_loader.hpp"
 #include "io/loaders/sogs_loader.hpp"
@@ -26,7 +25,6 @@ namespace lfs::io {
         registry_->registerLoader(std::make_unique<SogLoader>());
         registry_->registerLoader(std::make_unique<SpzLoader>());
         registry_->registerLoader(std::make_unique<CheckpointLoader>());
-        registry_->registerLoader(std::make_unique<FourDLoader>());
         registry_->registerLoader(std::make_unique<ColmapLoader>());
         registry_->registerLoader(std::make_unique<BlenderLoader>());
         registry_->registerLoader(std::make_unique<MeshLoader>());
@@ -61,7 +59,10 @@ namespace lfs::io {
                     "  - images.bin (or images.txt)\n"
                     "  - An 'images' folder with your photos\n\n"
                     "For NeRF/Blender datasets, ensure the folder contains:\n"
-                    "  - transforms.json (or transforms_train.json)",
+                    "  - transforms.json (or transforms_train.json)\n\n"
+                    "For 4D multi-camera sequences, provide a transforms.json with "
+                    "`camera_label` per frame and sibling image sequences in each "
+                    "camera's directory.",
                     filename);
             } else {
                 auto ext = path.extension().string();

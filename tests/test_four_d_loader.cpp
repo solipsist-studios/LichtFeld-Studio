@@ -4,18 +4,20 @@
 
 /**
  * @file test_four_d_loader.cpp
- * @brief Unit and integration tests for the 4D dataset loader (FourDLoader).
+ * @brief Unit and integration tests for 4D dataset loading via BlenderLoader.
  *
  * Tests cover:
- *   - Loader detection (canLoad)
- *   - Happy-path loading of a well-formed dataset4d.json
- *   - Validation of completeness (missing frames detected)
- *   - Timestamp monotonicity enforcement
- *   - SequenceDataset access patterns (time slice, (cam,time) pair, nearest time)
+ *   - 4D detection via transforms.json with camera_label + multi-image directories
+ *   - Happy-path loading produces correct Loaded4DDataset
+ *   - Fallback to 3D when camera_label absent or single-image directory
+ *   - Mismatched time step counts across cameras → hard error
+ *   - Missing image directory → hard error
+ *   - camera_label-absent fallback to file_path stem (3D path)
+ *   - SequenceDataset access patterns (unchanged)
  */
 
 #include "io/loader.hpp"
-#include "io/loaders/four_d_loader.hpp"
+#include "io/loaders/blender_loader.hpp"
 #include "training/sequence_dataset.hpp"
 
 #include <filesystem>
@@ -37,7 +39,6 @@ using namespace lfs::training;
 
 namespace {
 
-    /// Write a string to a file (creating parent directories as needed).
     void write_file(const fs::path& path, const std::string& content) {
         fs::create_directories(path.parent_path());
         std::ofstream f(path, std::ios::binary);
@@ -45,67 +46,52 @@ namespace {
         f << content;
     }
 
-    /// Build a minimal valid dataset4d.json string for @p num_cams cameras and
-    /// @p num_times time steps.  Image files are given placeholder paths
-    /// (validate_only mode does not check for on-disk existence).
-    std::string make_manifest(int num_cams, int num_times,
-                              bool include_timestamps = true,
-                              bool include_masks = false) {
-        std::string j = "{\n  \"version\": 1,\n";
+    /// Touch an empty file at @p path (creates parent dirs).
+    void touch(const fs::path& path) {
+        fs::create_directories(path.parent_path());
+        std::ofstream f(path);
+    }
 
-        if (include_timestamps) {
-            j += "  \"timestamps\": [";
-            for (int t = 0; t < num_times; ++t) {
-                j += std::format("{}{:.3f}", t > 0 ? "," : "", t * 0.033f);
-            }
-            j += "],\n";
-        }
+    /// A minimal 4×4 identity transform_matrix JSON string.
+    constexpr const char* IDENTITY_TM =
+        "[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]";
 
-        j += "  \"cameras\": [\n";
-        for (int c = 0; c < num_cams; ++c) {
-            j += std::format(
-                "    {{\n"
-                "      \"id\": \"cam_{:03d}\",\n"
-                "      \"width\": 640, \"height\": 480,\n"
-                "      \"focal_x\": 320.0, \"focal_y\": 320.0,\n"
-                "      \"center_x\": 320.0, \"center_y\": 240.0,\n"
-                "      \"R\": [[1,0,0],[0,1,0],[0,0,1]],\n"
-                "      \"T\": [0.0, 0.0, 0.0]\n"
-                "    }}{}",
-                c, c + 1 < num_cams ? "," : "");
-            j += "\n";
-        }
-        j += "  ],\n";
-
+    /**
+     * Build a transforms.json string for @p num_cams cameras, each with
+     * @p num_times images in its directory.  Each frame entry has a
+     * "camera_label" field (so 4D mode is triggered) unless
+     * @p include_camera_label is false.
+     *
+     * Image directories follow the pattern: images/cam_NNN/
+     * Filenames: frame_TTTT.png
+     */
+    std::string make_transforms_4d(int num_cams, int num_times,
+                                   bool include_camera_label = true,
+                                   float fl_x = 320.0f, float fl_y = 320.0f,
+                                   int w = 640, int h = 480) {
+        std::string j = "{\n";
+        j += std::format("  \"fl_x\": {}, \"fl_y\": {},\n", fl_x, fl_y);
+        j += std::format("  \"cx\": {}, \"cy\": {},\n", w / 2.0f, h / 2.0f);
+        j += std::format("  \"w\": {}, \"h\": {},\n", w, h);
         j += "  \"frames\": [\n";
+
         bool first = true;
-        for (int t = 0; t < num_times; ++t) {
-            for (int c = 0; c < num_cams; ++c) {
-                if (!first)
-                    j += ",\n";
-                first = false;
-
-                j += std::format(
-                    "    {{\n"
-                    "      \"time_index\": {},\n"
-                    "      \"camera_id\": \"cam_{:03d}\",\n"
-                    "      \"image_path\": \"images/cam_{:03d}/frame_{:04d}.jpg\"",
-                    t, c, c, t);
-
-                if (include_masks) {
-                    j += std::format(
-                        ",\n      \"mask_path\": \"masks/cam_{:03d}/frame_{:04d}.png\"", c, t);
-                }
-
-                j += "\n    }";
-            }
+        for (int c = 0; c < num_cams; ++c) {
+            if (!first) j += ",\n";
+            first = false;
+            j += "    {\n";
+            j += std::format("      \"file_path\": \"images/cam_{:03d}/frame_0000.png\",\n", c);
+            if (include_camera_label)
+                j += std::format("      \"camera_label\": \"Camera_{:04d}\",\n", c);
+            j += std::format("      \"transform_matrix\": {}\n", IDENTITY_TM);
+            j += "    }";
         }
+
         j += "\n  ]\n}\n";
         return j;
     }
 
-    /// Create a temporary directory, write dataset4d.json, and optionally touch
-    /// the referenced image (and mask) files so existence checks pass.
+    /// Temporary dataset directory helper.
     struct TmpDataset {
         fs::path root;
 
@@ -120,18 +106,23 @@ namespace {
             fs::remove_all(root, ec);
         }
 
-        void write_manifest(const std::string& content) {
-            write_file(root / "dataset4d.json", content);
+        void write_transforms(const std::string& content) {
+            write_file(root / "transforms.json", content);
         }
 
-        /// Touch the image files that would be referenced by make_manifest().
+        /// Create the image files for @p num_cams cameras × @p num_times time steps.
         void touch_images(int num_cams, int num_times) {
-            for (int t = 0; t < num_times; ++t) {
-                for (int c = 0; c < num_cams; ++c) {
-                    const fs::path img = root / std::format("images/cam_{:03d}/frame_{:04d}.jpg", c, t);
-                    fs::create_directories(img.parent_path());
-                    std::ofstream f(img); // empty file is fine
+            for (int c = 0; c < num_cams; ++c) {
+                for (int t = 0; t < num_times; ++t) {
+                    touch(root / std::format("images/cam_{:03d}/frame_{:04d}.png", c, t));
                 }
+            }
+        }
+
+        /// Create image files for one camera only (for mismatch tests).
+        void touch_images_for_cam(int cam_idx, int num_times) {
+            for (int t = 0; t < num_times; ++t) {
+                touch(root / std::format("images/cam_{:03d}/frame_{:04d}.png", cam_idx, t));
             }
         }
     };
@@ -139,185 +130,49 @@ namespace {
 } // namespace
 
 // ---------------------------------------------------------------------------
-// FourDLoader::canLoad
+// BlenderLoader 4D detection (canLoad)
 // ---------------------------------------------------------------------------
 
-class FourDLoaderCanLoadTest : public ::testing::Test {
+class BlenderLoader4DCanLoadTest : public ::testing::Test {
 protected:
-    FourDLoader loader;
-
-    TmpDataset ds{"canload"};
+    BlenderLoader loader;
+    TmpDataset ds{"canload_4d"};
 };
 
-TEST_F(FourDLoaderCanLoadTest, ReturnsFalseForNonExistentPath) {
+TEST_F(BlenderLoader4DCanLoadTest, ReturnsFalseForNonExistentPath) {
     EXPECT_FALSE(loader.canLoad(ds.root / "does_not_exist"));
 }
 
-TEST_F(FourDLoaderCanLoadTest, ReturnsFalseForDirectoryWithoutManifest) {
-    EXPECT_FALSE(loader.canLoad(ds.root));
-}
-
-TEST_F(FourDLoaderCanLoadTest, ReturnsTrueForDirectoryWithManifest) {
-    ds.write_manifest("{}"); // content doesn't matter for canLoad
+TEST_F(BlenderLoader4DCanLoadTest, ReturnsTrueForDirectoryWithTransforms) {
+    ds.write_transforms(make_transforms_4d(2, 3));
+    ds.touch_images(2, 3);
     EXPECT_TRUE(loader.canLoad(ds.root));
 }
 
-TEST_F(FourDLoaderCanLoadTest, ReturnsTrueForManifestFileDirect) {
-    ds.write_manifest("{}");
-    EXPECT_TRUE(loader.canLoad(ds.root / "dataset4d.json"));
+TEST_F(BlenderLoader4DCanLoadTest, ReturnsTrueForTransformsFileDirect) {
+    ds.write_transforms(make_transforms_4d(1, 2));
+    ds.touch_images(1, 2);
+    EXPECT_TRUE(loader.canLoad(ds.root / "transforms.json"));
 }
 
 // ---------------------------------------------------------------------------
-// Validate-only mode
+// 4D happy-path loading
 // ---------------------------------------------------------------------------
 
-class FourDLoaderValidateTest : public ::testing::Test {
+class BlenderLoader4DLoadTest : public ::testing::Test {
 protected:
-    FourDLoader loader;
+    BlenderLoader loader;
     LoadOptions opts;
-
-    void SetUp() override {
-        opts.validate_only = true;
-    }
 };
 
-TEST_F(FourDLoaderValidateTest, ValidManifestPassesValidation) {
-    TmpDataset ds("validate_ok");
-    ds.write_manifest(make_manifest(2, 3));
-
-    auto result = loader.load(ds.root, opts);
-    ASSERT_TRUE(result.has_value()) << result.error().format();
-    EXPECT_EQ(result->loader_used, "4D");
-
-    const auto& d4d = std::get<Loaded4DDataset>(result->data);
-    EXPECT_EQ(d4d.cameras.size(), 2u);
-    EXPECT_EQ(d4d.timestamps.size(), 3u);
-    // In validate mode the frames table is empty
-    EXPECT_TRUE(d4d.frames.empty());
-}
-
-TEST_F(FourDLoaderValidateTest, MissingFrameDetected) {
-    TmpDataset ds("validate_miss");
-
-    // Build a manifest where one frame is missing (cam_001 at t=1).
-    std::string j = R"({
-  "version": 1,
-  "cameras": [
-    {"id":"cam_000","width":640,"height":480,"focal_x":320,"focal_y":320,"center_x":320,"center_y":240,
-     "R":[[1,0,0],[0,1,0],[0,0,1]],"T":[0,0,0]},
-    {"id":"cam_001","width":640,"height":480,"focal_x":320,"focal_y":320,"center_x":320,"center_y":240,
-     "R":[[1,0,0],[0,1,0],[0,0,1]],"T":[0,0,0]}
-  ],
-  "frames": [
-    {"time_index":0,"camera_id":"cam_000","image_path":"images/c0_t0.jpg"},
-    {"time_index":0,"camera_id":"cam_001","image_path":"images/c1_t0.jpg"},
-    {"time_index":1,"camera_id":"cam_000","image_path":"images/c0_t1.jpg"}
-  ]
-})";
-    ds.write_manifest(j);
-
-    auto result = loader.load(ds.root, opts);
-    ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error().code, ErrorCode::INVALID_DATASET);
-}
-
-TEST_F(FourDLoaderValidateTest, NonMonotonicTimestampsRejected) {
-    TmpDataset ds("validate_ts");
-
-    std::string j = R"({
-  "version": 1,
-  "timestamps": [0.0, 0.5, 0.3],
-  "cameras": [
-    {"id":"cam_000","width":640,"height":480,"focal_x":320,"focal_y":320,"center_x":320,"center_y":240,
-     "R":[[1,0,0],[0,1,0],[0,0,1]],"T":[0,0,0]}
-  ],
-  "frames": [
-    {"time_index":0,"camera_id":"cam_000","image_path":"img0.jpg"},
-    {"time_index":1,"camera_id":"cam_000","image_path":"img1.jpg"},
-    {"time_index":2,"camera_id":"cam_000","image_path":"img2.jpg"}
-  ]
-})";
-    ds.write_manifest(j);
-
-    auto result = loader.load(ds.root, opts);
-    ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error().code, ErrorCode::INVALID_DATASET);
-}
-
-TEST_F(FourDLoaderValidateTest, DuplicateCameraIdRejected) {
-    TmpDataset ds("validate_dup");
-
-    std::string j = R"({
-  "version": 1,
-  "cameras": [
-    {"id":"cam_000","width":1,"height":1,"focal_x":1,"focal_y":1,"center_x":0,"center_y":0,
-     "R":[[1,0,0],[0,1,0],[0,0,1]],"T":[0,0,0]},
-    {"id":"cam_000","width":1,"height":1,"focal_x":1,"focal_y":1,"center_x":0,"center_y":0,
-     "R":[[1,0,0],[0,1,0],[0,0,1]],"T":[0,0,0]}
-  ],
-  "frames": [
-    {"time_index":0,"camera_id":"cam_000","image_path":"img.jpg"}
-  ]
-})";
-    ds.write_manifest(j);
-
-    auto result = loader.load(ds.root, opts);
-    ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error().code, ErrorCode::INVALID_DATASET);
-}
-
-TEST_F(FourDLoaderValidateTest, MissingCameraFieldRejected) {
-    TmpDataset ds("validate_field");
-
-    // Missing "width"
-    std::string j = R"({
-  "version": 1,
-  "cameras": [
-    {"id":"cam_000","height":480,"focal_x":320,"focal_y":320,"center_x":320,"center_y":240,
-     "R":[[1,0,0],[0,1,0],[0,0,1]],"T":[0,0,0]}
-  ],
-  "frames": [
-    {"time_index":0,"camera_id":"cam_000","image_path":"img.jpg"}
-  ]
-})";
-    ds.write_manifest(j);
-
-    auto result = loader.load(ds.root, opts);
-    ASSERT_FALSE(result.has_value());
-    EXPECT_EQ(result.error().code, ErrorCode::INVALID_DATASET);
-}
-
-TEST_F(FourDLoaderValidateTest, ImplicitTimestampsFromFrameIndices) {
-    TmpDataset ds("validate_implicit_ts");
-    // No "timestamps" key → loader generates 0,1,2,...
-    ds.write_manifest(make_manifest(1, 4, /*include_timestamps=*/false));
-
-    auto result = loader.load(ds.root, opts);
-    ASSERT_TRUE(result.has_value()) << result.error().format();
-
-    const auto& d4d = std::get<Loaded4DDataset>(result->data);
-    ASSERT_EQ(d4d.timestamps.size(), 4u);
-    EXPECT_FLOAT_EQ(d4d.timestamps[0], 0.0f);
-    EXPECT_FLOAT_EQ(d4d.timestamps[3], 3.0f);
-}
-
-// ---------------------------------------------------------------------------
-// Full (non-validate) loading with actual image files on disk
-// ---------------------------------------------------------------------------
-
-class FourDLoaderLoadTest : public ::testing::Test {
-protected:
-    FourDLoader loader;
-    LoadOptions opts; // default: validate_only = false
-};
-
-TEST_F(FourDLoaderLoadTest, LoadsDatasetCorrectly) {
+TEST_F(BlenderLoader4DLoadTest, LoadsCorrectNumberOfCamerasAndTimesteps) {
     TmpDataset ds("load_ok");
-    ds.write_manifest(make_manifest(3, 5));
+    ds.write_transforms(make_transforms_4d(3, 5));
     ds.touch_images(3, 5);
 
     auto result = loader.load(ds.root, opts);
     ASSERT_TRUE(result.has_value()) << result.error().format();
+    EXPECT_EQ(result->loader_used, "BlenderLoader-4D");
 
     const auto& d4d = std::get<Loaded4DDataset>(result->data);
     EXPECT_EQ(d4d.cameras.size(), 3u);
@@ -331,44 +186,143 @@ TEST_F(FourDLoaderLoadTest, LoadsDatasetCorrectly) {
     }
 }
 
-TEST_F(FourDLoaderLoadTest, MissingImageFileProducesError) {
-    TmpDataset ds("load_missing");
-    ds.write_manifest(make_manifest(1, 2));
-    // Intentionally do NOT touch images → files don't exist
+TEST_F(BlenderLoader4DLoadTest, TimestampsAreFrameIndices) {
+    TmpDataset ds("ts_indices");
+    ds.write_transforms(make_transforms_4d(1, 4));
+    ds.touch_images(1, 4);
+
+    auto result = loader.load(ds.root, opts);
+    ASSERT_TRUE(result.has_value()) << result.error().format();
+
+    const auto& d4d = std::get<Loaded4DDataset>(result->data);
+    ASSERT_EQ(d4d.timestamps.size(), 4u);
+    EXPECT_FLOAT_EQ(d4d.timestamps[0], 0.0f);
+    EXPECT_FLOAT_EQ(d4d.timestamps[1], 1.0f);
+    EXPECT_FLOAT_EQ(d4d.timestamps[3], 3.0f);
+}
+
+TEST_F(BlenderLoader4DLoadTest, PerFrameIntrinsicsStoredInCamera) {
+    TmpDataset ds("per_frame_intr");
+    // Use custom focal length via top-level
+    ds.write_transforms(make_transforms_4d(2, 2, true, 500.0f, 500.0f, 1024, 768));
+    ds.touch_images(2, 2);
+
+    auto result = loader.load(ds.root, opts);
+    ASSERT_TRUE(result.has_value()) << result.error().format();
+    const auto& d4d = std::get<Loaded4DDataset>(result->data);
+    ASSERT_EQ(d4d.cameras.size(), 2u);
+    EXPECT_FLOAT_EQ(d4d.cameras[0]->focal_x(), 500.0f);
+    EXPECT_FLOAT_EQ(d4d.cameras[0]->focal_y(), 500.0f);
+    EXPECT_EQ(d4d.cameras[0]->camera_width(), 1024);
+    EXPECT_EQ(d4d.cameras[0]->camera_height(), 768);
+}
+
+TEST_F(BlenderLoader4DLoadTest, FpsFieldProducesWarning) {
+    TmpDataset ds("fps_warn");
+    std::string j = make_transforms_4d(1, 2);
+    // Insert fps field before the closing brace
+    j.pop_back(); // remove trailing \n
+    j.pop_back(); // remove closing }
+    j += ",\n  \"fps\": 30.0\n}\n";
+    ds.write_transforms(j);
+    ds.touch_images(1, 2);
+
+    auto result = loader.load(ds.root, opts);
+    ASSERT_TRUE(result.has_value()) << result.error().format();
+    EXPECT_FALSE(result->warnings.empty());
+    bool found_fps = false;
+    for (const auto& w : result->warnings)
+        if (w.find("fps") != std::string::npos) found_fps = true;
+    EXPECT_TRUE(found_fps);
+}
+
+// ---------------------------------------------------------------------------
+// 4D error cases
+// ---------------------------------------------------------------------------
+
+TEST_F(BlenderLoader4DLoadTest, MismatchedTimestepCountIsHardError) {
+    TmpDataset ds("mismatch");
+    ds.write_transforms(make_transforms_4d(2, 3));
+    // Camera 0 gets 3 images, Camera 1 gets 5 → mismatch
+    ds.touch_images_for_cam(0, 3);
+    ds.touch_images_for_cam(1, 5);
+
+    auto result = loader.load(ds.root, opts);
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error().code, ErrorCode::INVALID_DATASET);
+}
+
+TEST_F(BlenderLoader4DLoadTest, MissingImageDirectoryIsHardError) {
+    TmpDataset ds("missing_dir");
+    ds.write_transforms(make_transforms_4d(1, 2));
+    // Intentionally do NOT create image files
 
     auto result = loader.load(ds.root, opts);
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error().code, ErrorCode::MISSING_REQUIRED_FILES);
 }
 
-TEST_F(FourDLoaderLoadTest, LoaderNameIs4D) {
-    EXPECT_EQ(loader.name(), "4D");
+// ---------------------------------------------------------------------------
+// Fallback to 3D: no camera_label → existing BlenderLoader/3D path
+// ---------------------------------------------------------------------------
+
+TEST_F(BlenderLoader4DLoadTest, NoCameraLabelFallsBackTo3D) {
+    TmpDataset ds("fallback_3d");
+    // Single image per camera dir and no camera_label → 3D path
+    ds.write_transforms(make_transforms_4d(2, 1, /*include_camera_label=*/false));
+    // Create single images (so is_4d_transforms returns false on dir count check)
+    ds.touch_images(2, 1);
+
+    // The BlenderLoader should attempt 3D loading. It may fail because the image
+    // isn't a real image file (empty), but it should NOT return a Loaded4DDataset.
+    auto result = loader.load(ds.root, opts);
+    // Either succeeds as LoadedScene or fails with a non-4D error.
+    // Critically, if it succeeds, it must be a LoadedScene (not Loaded4DDataset).
+    if (result.has_value()) {
+        EXPECT_TRUE(std::holds_alternative<LoadedScene>(result->data));
+    }
+    // Any error is acceptable here (real images would be needed for full 3D load).
 }
 
 // ---------------------------------------------------------------------------
-// SequenceDataset access patterns
+// Loader::isDatasetPath / getDatasetType integration
 // ---------------------------------------------------------------------------
 
-/// Build a small SequenceDataset in-memory for access pattern tests.
+TEST(LoaderDetection4DTest, IsDatasetPathReturnsTrueForTransformsDir) {
+    TmpDataset ds("detect_4d_transforms");
+    ds.write_transforms(make_transforms_4d(1, 2));
+    ds.touch_images(1, 2);
+    EXPECT_TRUE(Loader::isDatasetPath(ds.root));
+}
+
+TEST(LoaderDetection4DTest, GetDatasetTypeReturnsTransformsForTransformsDir) {
+    TmpDataset ds("detect_type_transforms");
+    ds.write_transforms(make_transforms_4d(2, 3));
+    ds.touch_images(2, 3);
+    // A 4D transforms.json is still a Transforms dataset at the static detection level.
+    // The 4D mode is detected at load time by BlenderLoader.
+    EXPECT_EQ(Loader::getDatasetType(ds.root), DatasetType::Transforms);
+}
+
+// ---------------------------------------------------------------------------
+// SequenceDataset access patterns (unchanged from original tests)
+// ---------------------------------------------------------------------------
+
 static std::shared_ptr<SequenceDataset> make_sequence_dataset(size_t num_cams, size_t num_times) {
     std::vector<std::shared_ptr<lfs::core::Camera>> cameras;
     cameras.reserve(num_cams);
-    for (size_t c = 0; c < num_cams; ++c) {
-        // Use default-constructed camera (enough for access tests)
+    for (size_t c = 0; c < num_cams; ++c)
         cameras.push_back(std::make_shared<lfs::core::Camera>());
-    }
 
     std::vector<float> timestamps(num_times);
-    for (size_t t = 0; t < num_times; ++t) {
-        timestamps[t] = static_cast<float>(t) * 0.5f; // 0.0, 0.5, 1.0, ...
-    }
+    for (size_t t = 0; t < num_times; ++t)
+        timestamps[t] = static_cast<float>(t) * 0.5f;
 
     std::vector<std::vector<SequenceFrameEntry>> frames(num_times);
     for (size_t t = 0; t < num_times; ++t) {
         frames[t].resize(num_cams);
-        for (size_t c = 0; c < num_cams; ++c) {
+        for (size_t c = 0; c < num_cams; ++c)
             frames[t][c].image_path = std::format("img_t{}_c{}.jpg", t, c);
-        }
     }
 
     return std::make_shared<SequenceDataset>(
@@ -426,10 +380,10 @@ TEST(SequenceDatasetTest, GetTimeStepForTimeExactMatch) {
 }
 
 TEST(SequenceDatasetTest, GetTimeStepForTimeNearestNeighbour) {
-    auto ds = make_sequence_dataset(1, 4);             // ts: 0.0, 0.5, 1.0, 1.5
-    EXPECT_EQ(ds->get_time_step_for_time(0.24f), 0u);  // closer to 0.0
-    EXPECT_EQ(ds->get_time_step_for_time(0.26f), 1u);  // closer to 0.5
-    EXPECT_EQ(ds->get_time_step_for_time(100.0f), 3u); // beyond end → last
+    auto ds = make_sequence_dataset(1, 4); // ts: 0.0, 0.5, 1.0, 1.5
+    EXPECT_EQ(ds->get_time_step_for_time(0.24f), 0u);
+    EXPECT_EQ(ds->get_time_step_for_time(0.26f), 1u);
+    EXPECT_EQ(ds->get_time_step_for_time(100.0f), 3u);
 }
 
 TEST(SequenceDatasetTest, GetTimeStepForTimeEmptyDataset) {
@@ -437,21 +391,6 @@ TEST(SequenceDatasetTest, GetTimeStepForTimeEmptyDataset) {
     std::vector<float> ts;
     std::vector<std::vector<SequenceFrameEntry>> frames;
     SequenceDataset ds(std::move(cameras), std::move(ts), std::move(frames));
-    EXPECT_EQ(ds.get_time_step_for_time(1.0f), 0u); // no crash, returns 0
+    EXPECT_EQ(ds.get_time_step_for_time(1.0f), 0u);
 }
 
-// ---------------------------------------------------------------------------
-// Loader::isDatasetPath / getDatasetType integration
-// ---------------------------------------------------------------------------
-
-TEST(LoaderDetectionTest, IsDatasetPathReturnsTrueFor4DDir) {
-    TmpDataset ds("detect_4d");
-    ds.write_manifest("{}");
-    EXPECT_TRUE(Loader::isDatasetPath(ds.root));
-}
-
-TEST(LoaderDetectionTest, GetDatasetTypeReturnsSequenceFor4DDir) {
-    TmpDataset ds("detect_type");
-    ds.write_manifest("{}");
-    EXPECT_EQ(Loader::getDatasetType(ds.root), DatasetType::Sequence);
-}
