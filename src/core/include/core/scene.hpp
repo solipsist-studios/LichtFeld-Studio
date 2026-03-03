@@ -44,7 +44,7 @@ namespace lfs::core {
         MESH,               // Triangle mesh (imported via Assimp, processed via OpenMesh)
         KEYFRAME_GROUP,     // Container for keyframe nodes (camera animation)
         KEYFRAME,           // Individual camera animation keyframe
-        TIME_SAMPLED_SPLAT  // Sequence of per-frame Gaussian Splat models (Flipbook/4D, Milestone 2)
+        TIME_SAMPLED_SPLAT  // Sequence of per-frame Gaussian Splat models (Flipbook/4D)
     };
 
     struct CropBoxData {
@@ -106,7 +106,7 @@ namespace lfs::core {
         std::unique_ptr<CropBoxData> cropbox;
         std::unique_ptr<EllipsoidData> ellipsoid;
         std::unique_ptr<KeyframeData> keyframe;
-        std::shared_ptr<lfs::training::TimeSampledSplatModel> time_sampled_model; ///< Flipbook/4D sequence (Milestone 2)
+        std::shared_ptr<lfs::training::TimeSampledSplatModel> time_sampled_model; ///< Flipbook/4D sequence
         size_t gaussian_count = 0;
         glm::vec3 centroid{0.0f};
 
@@ -189,7 +189,7 @@ namespace lfs::core {
         NodeId addCamera(const std::string& name, NodeId parent, std::shared_ptr<lfs::core::Camera> camera);
         NodeId addKeyframeGroup(const std::string& name, NodeId parent = NULL_NODE);
         NodeId addKeyframe(const std::string& name, NodeId parent, std::unique_ptr<KeyframeData> data);
-        /// Add a time-sampled Gaussian Splat sequence (Flipbook/4D result, Milestone 2).
+        /// Add a time-sampled Gaussian Splat sequence (Flipbook/4D result).
         NodeId addTimeSampledModel(const std::string& name,
                                    std::shared_ptr<lfs::training::TimeSampledSplatModel> model,
                                    NodeId parent = NULL_NODE);

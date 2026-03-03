@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2025 LichtFeld Studio Authors
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Tests for the TimeSampledSplatModel Python container (Milestone 2).
+"""Tests for the TimeSampledSplatModel Python container.
 
 These tests exercise the pure-Python ``TimeSampledSplatModel`` class defined in
 ``lfs_plugins.flipbook_trainer`` and do not require the C++ lichtfeld extension

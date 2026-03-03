@@ -4,7 +4,7 @@
 
 /**
  * @file test_time_sampled_splat_model.cpp
- * @brief Unit tests for lfs::training::TimeSampledSplatModel (Milestone 2).
+ * @brief Unit tests for lfs::training::TimeSampledSplatModel.
  *
  * Tests cover:
  *   - Construction (empty, add entries)

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Flipbook (per-time-step) training orchestration for 4D datasets.
 
-Milestone 2 implementation: train a standard 3D Gaussian Splat model for each
-discrete time step in a 4D SequenceDataset, producing a TimeSampledSplatModel
-that can be played back via the Sequencer playhead.
+Train a standard 3D Gaussian Splat model for each discrete time step in a
+4D SequenceDataset, producing a TimeSampledSplatModel that can be played back
+via the Sequencer playhead.
 
 Architecture overview
 ---------------------

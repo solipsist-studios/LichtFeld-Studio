@@ -6,7 +6,7 @@
 
 /**
  * @file time_sampled_splat_model.hpp
- * @brief Container for a sequence of per-frame 3D Gaussian Splat models (Milestone 2).
+ * @brief Container for a sequence of per-frame 3D Gaussian Splat models.
  *
  * TimeSampledSplatModel holds an ordered list of (timestamp, model) entries that
  * represent the output of Flipbook/per-frame training over a 4D dataset.
