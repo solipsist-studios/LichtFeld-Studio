@@ -38,7 +38,7 @@ namespace lfs::io {
         // ---------------------------------------------------------------
 
         /// Tensor to glm::mat4 (row-major storage in Tensor, column-major in glm)
-        glm::mat4 tensor_to_mat4_bl(const Tensor& t) {
+        glm::mat4 tensor_to_mat4(const Tensor& t) {
             glm::mat4 mat;
             const float* data = t.ptr<float>();
             for (int i = 0; i < 4; ++i)
@@ -47,7 +47,7 @@ namespace lfs::io {
             return mat;
         }
 
-        Tensor mat4_to_tensor_bl(const glm::mat4& mat) {
+        Tensor mat4_to_tensor(const glm::mat4& mat) {
             Tensor t = Tensor::empty({4, 4}, Device::CPU, DataType::Float32);
             for (int i = 0; i < 4; ++i)
                 for (int j = 0; j < 4; ++j)
@@ -55,7 +55,7 @@ namespace lfs::io {
             return t;
         }
 
-        Tensor createYRotationMatrix_bl(float angle_radians) {
+        Tensor createYRotationMatrix(float angle_radians) {
             Tensor rot = Tensor::eye(4, Device::CPU);
             float c = std::cos(angle_radians);
             float s = std::sin(angle_radians);
@@ -79,9 +79,9 @@ namespace lfs::io {
                 d[i * 4 + 2] *= -1.0f;
             }
 
-            glm::mat4 w2c_glm = glm::inverse(tensor_to_mat4_bl(c2w));
-            Tensor w2c = mat4_to_tensor_bl(w2c_glm);
-            Tensor fixMat = createYRotationMatrix_bl(static_cast<float>(std::numbers::pi));
+            glm::mat4 w2c_glm = glm::inverse(tensor_to_mat4(c2w));
+            Tensor w2c = mat4_to_tensor(w2c_glm);
+            Tensor fixMat = createYRotationMatrix(static_cast<float>(std::numbers::pi));
             w2c = w2c.mm(fixMat);
 
             Tensor R = w2c.slice(0, 0, 3).slice(1, 0, 3).contiguous();
@@ -308,8 +308,8 @@ namespace lfs::io {
                     pf.T,
                     intr.fl_x,
                     intr.fl_y,
-                    intr.cx > 0 ? intr.cx : (intr.w > 0 ? 0.5f * intr.w : 0.0f),
-                    intr.cy > 0 ? intr.cy : (intr.h > 0 ? 0.5f * intr.h : 0.0f),
+                    intr.cx > 0 ? intr.cx : (intr.w > 0 ? 0.5f * static_cast<float>(intr.w) : 0.0f),
+                    intr.cy > 0 ? intr.cy : (intr.h > 0 ? 0.5f * static_cast<float>(intr.h) : 0.0f),
                     radial,
                     tangential,
                     lfs::core::CameraModelType::PINHOLE,
