@@ -1316,7 +1316,8 @@ namespace lfs::core {
         return node->model_4d.get();
     }
 
-
+    NodeId Scene::addCropBox(const std::string& name, NodeId parent_id) {
+        assert(parent_id != NULL_NODE && "CropBox must have a parent splat node");
 
         const auto* parent = getNodeById(parent_id);
         if (parent) {
