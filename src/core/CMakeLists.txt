@@ -56,6 +56,7 @@ set(CORE_SOURCES
         property_registry.cpp
         scene.cpp
         splat_data.cpp
+        splat_data_4d.cpp
         splat_data_mirror.cpp
         splat_data_transform.cpp
         tensor_debug.cpp

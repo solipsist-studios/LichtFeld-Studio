@@ -34,6 +34,11 @@ namespace lfs::rendering {
             const lfs::core::SplatData& splat_data,
             const RenderRequest& request) override;
 
+        Result<RenderResult> renderGaussians4D(
+            const lfs::core::SplatData4D& splat_data,
+            float playhead_time,
+            const RenderRequest& request) override;
+
         Result<RenderResult> renderPointCloud(
             const lfs::core::PointCloud& point_cloud,
             const RenderRequest& request) override;

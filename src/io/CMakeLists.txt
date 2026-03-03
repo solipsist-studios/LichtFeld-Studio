@@ -135,6 +135,8 @@ add_library(lfs_io STATIC
         formats/html_viewer_resources.hpp
         formats/spz.hpp
         formats/spz.cpp
+        formats/omg4_loader.hpp
+        formats/omg4_loader.cpp
 
         # Concrete loader implementations
         loaders/ply_loader.hpp
@@ -153,6 +155,8 @@ add_library(lfs_io STATIC
         loaders/mesh_loader.cpp
         loaders/four_d_loader.hpp
         loaders/four_d_loader.cpp
+        loaders/omg4_loader.hpp
+        loaders/omg4_loader.cpp
         mesh/openmesh_bridge.hpp
         mesh/openmesh_bridge.cpp
         mesh/texture_loader.hpp

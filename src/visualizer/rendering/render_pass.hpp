@@ -63,6 +63,8 @@ namespace lfs::vis {
         int hovered_gaussian_id = -1;
         float selection_flash_intensity = 0;
         unsigned int cached_render_texture = 0;
+        /// Current sequencer playhead time in seconds (from GlobalTimeContext).
+        float current_time = 0.0f;
 
         [[nodiscard]] lfs::rendering::ViewportData makeViewportData() const {
             return {.rotation = viewport.getRotationMatrix(),

@@ -72,6 +72,16 @@ namespace lfs::io {
                     return true;
                 }
 
+                if (ext == ".pth") {
+                    LOG_TRACE("PyTorch checkpoint detected (potential OMG4): {}", lfs::core::path_to_utf8(path));
+                    return true;
+                }
+
+                if (ext == ".xz") {
+                    LOG_TRACE("LZMA archive detected (potential OMG4 compressed): {}", lfs::core::path_to_utf8(path));
+                    return true;
+                }
+
                 if (ext == ".json") {
                     LOG_TRACE("JSON file detected (potential transforms): {}", lfs::core::path_to_utf8(path));
                     return true;

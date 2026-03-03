@@ -929,7 +929,8 @@ namespace lfs::vis {
             .current_camera_id = current_camera_id_,
             .hovered_gaussian_id = hovered_gaussian_id_,
             .selection_flash_intensity = getSelectionFlashIntensity(),
-            .cached_render_texture = cached_render_texture_};
+            .cached_render_texture = cached_render_texture_,
+            .current_time = context.current_time};
 
         FrameResources resources{
             .cached_result = cached_result_,

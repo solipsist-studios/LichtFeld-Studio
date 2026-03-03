@@ -22,6 +22,7 @@ namespace lfs::core {
     struct MeshData;
     class Camera;
     class Tensor;
+    class SplatData4D;
 } // namespace lfs::core
 
 namespace lfs::rendering {
@@ -273,6 +274,12 @@ namespace lfs::rendering {
         // Core rendering with error handling
         virtual Result<RenderResult> renderGaussians(
             const lfs::core::SplatData& splat_data,
+            const RenderRequest& request) = 0;
+
+        // 4D Gaussian Splatting rendering with temporal conditioning
+        virtual Result<RenderResult> renderGaussians4D(
+            const lfs::core::SplatData4D& splat_data,
+            float playhead_time,
             const RenderRequest& request) = 0;
 
         // Point cloud rendering (for pre-training visualization)

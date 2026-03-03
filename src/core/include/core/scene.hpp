@@ -9,6 +9,7 @@
 #include "core/export.hpp"
 #include "core/mesh_data.hpp"
 #include "core/splat_data.hpp"
+#include "core/splat_data_4d.hpp"
 #include "core/tensor.hpp"
 #include <atomic>
 #include <cassert>
@@ -44,7 +45,8 @@ namespace lfs::core {
         MESH,               // Triangle mesh (imported via Assimp, processed via OpenMesh)
         KEYFRAME_GROUP,     // Container for keyframe nodes (camera animation)
         KEYFRAME,           // Individual camera animation keyframe
-        TIME_SAMPLED_SPLAT  // Sequence of per-frame Gaussian Splat models (Flipbook/4D)
+        TIME_SAMPLED_SPLAT, // Sequence of per-frame Gaussian Splat models (Flipbook/4D)
+        SPLAT_4D            // Single OMG4 4D Gaussian Splat model (continuous temporal)
     };
 
     struct CropBoxData {
@@ -107,6 +109,7 @@ namespace lfs::core {
         std::unique_ptr<EllipsoidData> ellipsoid;
         std::unique_ptr<KeyframeData> keyframe;
         std::shared_ptr<lfs::training::TimeSampledSplatModel> time_sampled_model; ///< Flipbook/4D sequence
+        std::unique_ptr<lfs::core::SplatData4D> model_4d; ///< OMG4 4D Gaussian Splat model
         size_t gaussian_count = 0;
         glm::vec3 centroid{0.0f};
 
@@ -196,6 +199,13 @@ namespace lfs::core {
         /// Return the time-sampled model stored in the node with the given name, or nullptr.
         [[nodiscard]] lfs::training::TimeSampledSplatModel* getTimeSampledModel(const std::string& name);
         [[nodiscard]] const lfs::training::TimeSampledSplatModel* getTimeSampledModel(const std::string& name) const;
+        /// Add an OMG4 4D Gaussian Splat model (continuous temporal).
+        NodeId addSplat4D(const std::string& name,
+                          std::unique_ptr<lfs::core::SplatData4D> model,
+                          NodeId parent = NULL_NODE);
+        /// Return the 4D splat model stored in the node with the given name, or nullptr.
+        [[nodiscard]] lfs::core::SplatData4D* getSplat4D(const std::string& name);
+        [[nodiscard]] const lfs::core::SplatData4D* getSplat4D(const std::string& name) const;
         void removeKeyframeNodes();
         void reparent(NodeId node, NodeId new_parent);
         [[nodiscard]] std::string duplicateNode(const std::string& name);
