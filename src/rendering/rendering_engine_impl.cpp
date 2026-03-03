@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later */
 
 #include "rendering_engine_impl.hpp"
+#include "condition_4d.hpp"
 #include "core/logger.hpp"
 #include "core/mesh_data.hpp"
 #include "core/point_cloud.hpp"
+#include "core/splat_data_4d.hpp"
 #include "framebuffer_factory.hpp"
 #include "geometry/bounding_box.hpp"
 #include "rendering/render_constants.hpp"
@@ -303,7 +305,89 @@ namespace lfs::rendering {
         return result;
     }
 
-    Result<RenderResult> RenderingEngineImpl::renderPointCloud(
+    Result<RenderResult> RenderingEngineImpl::renderGaussians4D(
+        const lfs::core::SplatData4D& splat_data,
+        float playhead_time,
+        const RenderRequest& request) {
+
+        if (!isInitialized()) {
+            LOG_ERROR("Rendering engine not initialized");
+            return std::unexpected("Rendering engine not initialized");
+        }
+
+        const auto N = static_cast<int>(splat_data.size());
+        if (N == 0) {
+            return std::unexpected("4D splat model is empty");
+        }
+
+        LOG_TRACE("renderGaussians4D: N={}, time={:.3f}", N, playhead_time);
+
+        // ---- Step 1: compute scaling_xyzt [N, 4] ----
+        // Combine 3D activated scale [N, 3] with temporal activated scale [N, 1]
+        const Tensor scale_3d = splat_data.get_scaling(); // [N, 3]  exp(log_scale)
+        const Tensor scale_t = splat_data.get_scaling_t(); // [N, 1]  exp(log_scale_t)
+        const Tensor scaling_xyzt = scale_3d.cat(scale_t, 1); // [N, 4]
+
+        // ---- Step 2: build left rotation quaternion from 3D rotation ----
+        // OMG4 uses a left-isoclinic 3D→4D quaternion embedding:
+        // rotation_l comes from the standard 3D rotation quaternion.
+        const Tensor rotation_l = splat_data.get_rotation(); // [N, 4] normalized
+
+        // right-isoclinic quaternion (4D extension)
+        const Tensor rotation_r = splat_data.get_rotation_r(); // [N, 4] normalized
+
+        // ---- Step 3: get pre-activated opacity ----
+        // renderGaussians pipeline calls sigmoid internally, so we pass raw logit.
+        // But condition_4d_gaussians expects pre-activated (sigmoid) opacity so
+        // we can apply the marginal weight and pass back the weighted raw logit.
+        // Simplest: compute sigmoid, apply weight, convert back with logit.
+        const Tensor opacity_activated = splat_data.get_opacity(); // [N], sigmoid applied
+
+        // ---- Step 4: run CUDA 4D conditioning kernel ----
+        auto cond = condition_4d_gaussians(
+            splat_data.means_raw(),   // [N, 3]
+            splat_data.t_raw(),       // [N, 1]
+            scaling_xyzt,             // [N, 4]
+            rotation_l,               // [N, 4]
+            rotation_r,               // [N, 4]
+            opacity_activated,        // [N]  (activated)
+            playhead_time,
+            request.scaling_modifier);
+
+        if (!cond.conditioned_means.is_valid()) {
+            return std::unexpected("4D conditioning kernel failed");
+        }
+
+        // ---- Step 5: build a temporary SplatData with conditioned fields ----
+        // We use conditioned means and opacity; keep original 3D rotation/scale
+        // for the covariance computation (exact covariance would require a
+        // factorization of cond.conditioned_cov6, deferred to a future milestone).
+        //
+        // Logit-space conditioned opacity = logit(cond_opacity) so sigmoid gives it back.
+        // Clamp to avoid log(0): cond_opacity is in (0, 1].
+        const Tensor cond_opacity_clamped = cond.conditioned_opacity.clamp(1e-7f, 1.0f - 1e-7f);
+        const Tensor one_minus_clamped = Tensor::full_like(cond_opacity_clamped, 1.0f).sub(cond_opacity_clamped);
+        const Tensor cond_opacity_logit = cond_opacity_clamped.div(one_minus_clamped).log();
+
+        // Unsqueeze opacity to [N, 1] as SplatData expects
+        const Tensor cond_opacity_logit_ns = cond_opacity_logit.unsqueeze(-1);
+
+        lfs::core::SplatData conditioned_3d(
+            splat_data.get_active_sh_degree(),
+            cond.conditioned_means,          // conditioned 3D means [N, 3]
+            splat_data.sh0_raw().clone(),    // original SH DC
+            splat_data.shN_raw().is_valid() ? splat_data.shN_raw().clone()
+                                            : lfs::core::Tensor{},
+            splat_data.scaling_raw().clone(),  // original 3D log-scale
+            splat_data.rotation_raw().clone(), // original 3D rotation
+            cond_opacity_logit_ns,             // conditioned opacity (logit)
+            splat_data.get_scene_scale());
+
+        // ---- Step 6: render using the standard 3D Gaussian pipeline ----
+        return renderGaussians(conditioned_3d, request);
+    }
+
+
         const lfs::core::PointCloud& point_cloud,
         const RenderRequest& request) {
 

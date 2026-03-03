@@ -8,6 +8,7 @@
 #include "core/events.hpp"
 #include "core/logger.hpp"
 #include "core/path_utils.hpp"
+#include "core/splat_data_4d.hpp"
 #include "core/splat_data_transform.hpp"
 #include "core/tensor/internal/memory_pool.hpp"
 #include "training/time_sampled_splat_model.hpp"
@@ -1259,7 +1260,63 @@ namespace lfs::core {
         return node->time_sampled_model.get();
     }
 
+    NodeId Scene::addSplat4D(const std::string& name,
+                             std::unique_ptr<lfs::core::SplatData4D> model,
+                             const NodeId parent) {
+        if (!model) {
+            LOG_WARN("Cannot add 4D splat node '{}': model is null", name);
+            return NULL_NODE;
+        }
 
+        std::string unique_name = name;
+        if (name_to_id_.contains(unique_name)) {
+            int counter = 2;
+            while (name_to_id_.contains(unique_name)) {
+                unique_name = name + "_" + std::to_string(counter++);
+            }
+        }
+
+        const NodeId id = next_node_id_++;
+        auto node = std::make_unique<SceneNode>();
+        node->id = id;
+        node->parent_id = parent;
+        node->type = NodeType::SPLAT_4D;
+        node->name = unique_name;
+        node->gaussian_count = model->size();
+        node->model_4d = std::move(model);
+
+        if (parent != NULL_NODE) {
+            if (auto* p = getNodeById(parent)) {
+                p->children.push_back(id);
+            }
+        }
+
+        id_to_index_[id] = nodes_.size();
+        name_to_id_[unique_name] = id;
+        node->initObservables(this);
+        nodes_.push_back(std::move(node));
+        notifyMutation(MutationType::NODE_ADDED);
+
+        LOG_DEBUG("Added 4D splat node '{}' (id={}, {} Gaussians)",
+                  unique_name, id, nodes_.back()->gaussian_count);
+        return id;
+    }
+
+    lfs::core::SplatData4D* Scene::getSplat4D(const std::string& name) {
+        auto* node = getMutableNode(name);
+        if (!node || node->type != NodeType::SPLAT_4D)
+            return nullptr;
+        return node->model_4d.get();
+    }
+
+    const lfs::core::SplatData4D* Scene::getSplat4D(const std::string& name) const {
+        const auto* node = getNode(name);
+        if (!node || node->type != NodeType::SPLAT_4D)
+            return nullptr;
+        return node->model_4d.get();
+    }
+
+    NodeId Scene::addCropBox(const std::string& name, NodeId parent_id) {
         assert(parent_id != NULL_NODE && "CropBox must have a parent splat node");
 
         const auto* parent = getNodeById(parent_id);

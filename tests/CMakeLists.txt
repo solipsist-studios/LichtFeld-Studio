@@ -253,6 +253,7 @@ set(TEST_FILES
     test_global_time_context.cpp
     test_four_d_loader.cpp
     test_time_sampled_splat_model.cpp
+    test_splat_data_4d.cpp
     test_tensor_stream.cpp
     test_tensor_memory_planner.cpp
 )

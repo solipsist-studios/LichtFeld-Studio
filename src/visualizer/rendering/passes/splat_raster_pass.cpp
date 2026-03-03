@@ -5,7 +5,9 @@
 #include "splat_raster_pass.hpp"
 #include "core/cuda_debug.hpp"
 #include "core/logger.hpp"
+#include "core/scene.hpp"
 #include "core/splat_data.hpp"
+#include "core/splat_data_4d.hpp"
 #include "geometry/euclidean_transform.hpp"
 #include "scene/scene_manager.hpp"
 #include "training/components/ppisp.hpp"
@@ -94,9 +96,20 @@ namespace lfs::vis {
     }
 
     bool SplatRasterPass::shouldExecute(DirtyMask frame_dirty, const FrameContext& ctx) const {
-        if (!ctx.model || ctx.model->size() == 0)
-            return false;
-        return (frame_dirty & sensitivity()) != 0;
+        // Check for standard 3D model
+        if (ctx.model && ctx.model->size() > 0)
+            return (frame_dirty & sensitivity()) != 0;
+
+        // Check for 4D model in the scene
+        if (ctx.scene_manager) {
+            const auto& scene = ctx.scene_manager->getScene();
+            for (const auto* node : scene.getVisibleNodes()) {
+                if (node && node->type == lfs::core::NodeType::SPLAT_4D && node->model_4d)
+                    return (frame_dirty & sensitivity()) != 0;
+            }
+        }
+
+        return false;
     }
 
     void SplatRasterPass::execute(lfs::rendering::RenderingEngine& engine,
@@ -111,7 +124,22 @@ namespace lfs::vis {
     void SplatRasterPass::renderToTexture(lfs::rendering::RenderingEngine& engine,
                                           const FrameContext& ctx, FrameResources& res) {
         LOG_TIMER_TRACE("SplatRasterPass::renderToTexture");
-        assert(ctx.model && ctx.model->size() > 0);
+        // For SPLAT_4D nodes ctx.model may be null; check that we have something to render.
+        const bool has_3d_model = ctx.model && ctx.model->size() > 0;
+        bool has_4d_model = false;
+        if (!has_3d_model && ctx.scene_manager) {
+            const auto& scene = ctx.scene_manager->getScene();
+            for (const auto* node : scene.getVisibleNodes()) {
+                if (node && node->type == lfs::core::NodeType::SPLAT_4D && node->model_4d) {
+                    has_4d_model = true;
+                    break;
+                }
+            }
+        }
+        if (!has_3d_model && !has_4d_model) {
+            LOG_WARN("SplatRasterPass::renderToTexture: no model to render");
+            return;
+        }
 
         const auto& settings = ctx.settings;
 
@@ -293,7 +321,28 @@ namespace lfs::vis {
 
         auto render_lock = acquireRenderLock(ctx);
 
-        auto render_result = engine.renderGaussians(*ctx.model, request);
+        // Dispatch to the appropriate renderer based on node type.
+        // Check if the active scene node is a SPLAT_4D model.
+        lfs::rendering::Result<lfs::rendering::RenderResult> render_result =
+            std::unexpected(std::string("not rendered"));
+        bool used_4d_render = false;
+        if (ctx.scene_manager) {
+            const auto& scene = ctx.scene_manager->getScene();
+            // Try to find a visible SPLAT_4D node
+            for (const auto* node : scene.getVisibleNodes()) {
+                if (node && node->type == lfs::core::NodeType::SPLAT_4D && node->model_4d) {
+                    render_result = engine.renderGaussians4D(
+                        *node->model_4d, ctx.current_time, request);
+                    used_4d_render = true;
+                    break;
+                }
+            }
+        }
+        if (!used_4d_render) {
+            if (ctx.model) {
+                render_result = engine.renderGaussians(*ctx.model, request);
+            }
+        }
 
         if (render_result && render_result->image && settings.apply_appearance_correction) {
             bool applied = false;

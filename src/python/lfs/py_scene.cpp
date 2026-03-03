@@ -551,7 +551,8 @@ namespace lfs::python {
             .value("MESH", core::NodeType::MESH)
             .value("KEYFRAME_GROUP", core::NodeType::KEYFRAME_GROUP)
             .value("KEYFRAME", core::NodeType::KEYFRAME)
-            .value("TIME_SAMPLED_SPLAT", core::NodeType::TIME_SAMPLED_SPLAT);
+            .value("TIME_SAMPLED_SPLAT", core::NodeType::TIME_SAMPLED_SPLAT)
+            .value("SPLAT_4D", core::NodeType::SPLAT_4D);
 
         nb::class_<PyMeshInfo>(m, "MeshInfo")
             .def_prop_ro("vertex_count", &PyMeshInfo::vertex_count)
