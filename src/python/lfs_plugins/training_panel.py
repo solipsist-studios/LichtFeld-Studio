@@ -619,6 +619,7 @@ class TrainingPanel(RmlPanel):
 
         self._draw_status(layout, state, iteration)
         
+
     def _update_progress(self, doc):
         it = AppState.iteration.value
         mx = AppState.max_iterations.value
