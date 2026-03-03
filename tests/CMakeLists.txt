@@ -252,6 +252,7 @@ set(TEST_FILES
     test_rotated_sh_correctness.cpp
     test_global_time_context.cpp
     test_four_d_loader.cpp
+    test_time_sampled_splat_model.cpp
     test_tensor_stream.cpp
     test_tensor_memory_planner.cpp
 )
