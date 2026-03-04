@@ -242,9 +242,6 @@ namespace lfs::io {
             }
         }
 
-        // Check for 4D sequence dataset (transforms.json with camera_label is handled
-        // by BlenderLoader; detection here is deferred to the loader itself)
-
         // Check for COLMAP markers
         auto colmap_paths = get_colmap_search_paths(path);
         const std::vector<std::string> colmap_markers = {
