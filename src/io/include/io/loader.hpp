@@ -39,7 +39,7 @@ namespace lfs::io {
         Unknown,
         COLMAP,
         Transforms,
-        Sequence // 4D multi-camera sequence dataset (dataset4d.json)
+        Sequence // 4D multi-camera sequence dataset (transforms.json with camera_label per frame)
     };
 
     // Public types that clients need
@@ -57,50 +57,25 @@ namespace lfs::io {
     };
 
     /**
-     * @brief A time-indexed multi-camera dataset for 4D training (OMG4/4D support).
+     * @brief A time-indexed multi-camera dataset for 4D training.
      *
-     * On-disk layout (identified by a "dataset4d.json" manifest):
+     * On-disk layout (identified by a transforms.json or transforms_train.json
+     * where every frame entry contains a "camera_label" field and each camera's
+     * image directory contains more than one image file):
      *
      *   <root>/
-     *     dataset4d.json          # Manifest: cameras, timestamps, frame paths
+     *     transforms.json          # Standard NeRF transforms with camera_label per frame
      *     images/
-     *       cam_000/              # One sub-directory per camera
-     *         frame_0000.jpg      # Frames named frame_<NNNN>.<ext>
-     *         frame_0001.jpg
-     *       cam_001/
+     *       cam_001/               # One sub-directory per camera (discovered via file_path)
+     *         01_Frame0001.png     # Sorted lexicographically → time step 0
+     *         01_Frame0002.png     # time step 1, …
+     *       cam_002/
      *         ...
-     *     masks/                  # Optional: same layout as images/
-     *       cam_000/
-     *         frame_0000.png
-     *
-     * dataset4d.json schema (version 1):
-     * {
-     *   "version": 1,
-     *   "timestamps": [0.0, 0.033, ...],   // seconds; if absent, use frame indices
-     *   "cameras": [
-     *     {
-     *       "id": "cam_000",
-     *       "width": 1920, "height": 1080,
-     *       "focal_x": 1000.0, "focal_y": 1000.0,
-     *       "center_x": 960.0, "center_y": 540.0,
-     *       "R": [[1,0,0],[0,1,0],[0,0,1]],   // 3x3 rotation matrix (row-major)
-     *       "T": [0.0, 0.0, 0.0]              // translation vector
-     *     }
-     *   ],
-     *   "frames": [
-     *     {
-     *       "time_index": 0,
-     *       "camera_id": "cam_000",
-     *       "image_path": "images/cam_000/frame_0000.jpg",
-     *       "mask_path": "masks/cam_000/frame_0000.png"   // optional
-     *     }
-     *   ]
-     * }
      *
      * Invariants enforced by the loader:
-     *   - Every camera has exactly one frame per time step.
-     *   - timestamps are monotonically increasing.
-     *   - All image paths exist on disk (missing paths produce an error).
+     *   - Every camera has exactly one image per time step (discovered on disk).
+     *   - All cameras must have the same number of time steps.
+     *   - timestamps[i] == float(i) (frame-index based; fps not applied here).
      */
     struct Loaded4DDataset {
         /// Fixed cameras (intrinsics/extrinsics constant across all time steps).

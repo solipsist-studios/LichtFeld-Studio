@@ -11,11 +11,15 @@
 #include "formats/transforms.hpp"
 #include "io/error.hpp"
 #include "io/filesystem_utils.hpp"
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <nlohmann/json.hpp>
+#include <numbers>
 
 namespace lfs::io {
 
@@ -28,6 +32,362 @@ namespace lfs::io {
     namespace {
         constexpr std::array MASK_FOLDERS = {"masks", "mask", "segmentation"};
         constexpr std::array MASK_EXTENSIONS = {".png", ".jpg", ".jpeg", ".mask.png"};
+
+        // ---------------------------------------------------------------
+        // Helpers shared between 3D and 4D loading paths
+        // ---------------------------------------------------------------
+
+        /// Tensor to glm::mat4 (row-major storage in Tensor, column-major in glm)
+        glm::mat4 tensor_to_mat4(const Tensor& t) {
+            glm::mat4 mat;
+            const float* data = t.ptr<float>();
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j)
+                    mat[j][i] = data[i * 4 + j];
+            return mat;
+        }
+
+        Tensor mat4_to_tensor(const glm::mat4& mat) {
+            Tensor t = Tensor::empty({4, 4}, Device::CPU, DataType::Float32);
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j)
+                    t[i][j] = mat[j][i];
+            return t;
+        }
+
+        Tensor createYRotationMatrix(float angle_radians) {
+            Tensor rot = Tensor::eye(4, Device::CPU);
+            float c = std::cos(angle_radians);
+            float s = std::sin(angle_radians);
+            rot[0][0] = c;  rot[0][2] = s;
+            rot[2][0] = -s; rot[2][2] = c;
+            return rot;
+        }
+
+        /// Convert a 4×4 c2w matrix from Blender axes to R,T (COLMAP convention).
+        /// Mirrors the logic in transforms.cpp::read_transforms_cameras_and_images.
+        std::pair<Tensor, Tensor> c2w_json_to_RT(const nlohmann::json& transform_matrix) {
+            Tensor c2w = Tensor::empty({4, 4}, Device::CPU, DataType::Float32);
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 4; ++j)
+                    c2w[i][j] = float(transform_matrix[i][j]);
+
+            // Blender → COLMAP axis flip: c2w[:3, 1:3] *= -1
+            float* d = c2w.ptr<float>();
+            for (int i = 0; i < 3; ++i) {
+                d[i * 4 + 1] *= -1.0f;
+                d[i * 4 + 2] *= -1.0f;
+            }
+
+            glm::mat4 w2c_glm = glm::inverse(tensor_to_mat4(c2w));
+            Tensor w2c = mat4_to_tensor(w2c_glm);
+            Tensor fixMat = createYRotationMatrix(static_cast<float>(std::numbers::pi));
+            w2c = w2c.mm(fixMat);
+
+            Tensor R = w2c.slice(0, 0, 3).slice(1, 0, 3).contiguous();
+            Tensor T = w2c.slice(0, 0, 3).slice(1, 3, 4).squeeze(1).contiguous();
+            return {R, T};
+        }
+
+        /// Read per-frame intrinsics, falling back to top-level values.
+        struct FrameIntrinsics {
+            float fl_x, fl_y, cx, cy;
+            int w, h;
+            float k1 = 0, k2 = 0, k3 = 0, p1 = 0, p2 = 0;
+        };
+
+        FrameIntrinsics read_intrinsics(const nlohmann::json& frame,
+                                        const nlohmann::json& top) {
+            auto get_f = [&](const char* key, float fallback) -> float {
+                if (frame.contains(key) && frame[key].is_number()) return float(frame[key]);
+                if (top.contains(key) && top[key].is_number()) return float(top[key]);
+                return fallback;
+            };
+            auto get_i = [&](const char* key, int fallback) -> int {
+                if (frame.contains(key) && frame[key].is_number()) return int(frame[key]);
+                if (top.contains(key) && top[key].is_number()) return int(top[key]);
+                return fallback;
+            };
+
+            FrameIntrinsics fi;
+            fi.w  = get_i("w", -1);
+            fi.h  = get_i("h", -1);
+            fi.fl_x = get_f("fl_x", -1.0f);
+            fi.fl_y = get_f("fl_y", -1.0f);
+            fi.cx = get_f("cx", fi.w > 0 ? 0.5f * fi.w : -1.0f);
+            fi.cy = get_f("cy", fi.h > 0 ? 0.5f * fi.h : -1.0f);
+            fi.k1 = get_f("k1", 0.0f);
+            fi.k2 = get_f("k2", 0.0f);
+            fi.k3 = get_f("k3", 0.0f);
+            fi.p1 = get_f("p1", 0.0f);
+            fi.p2 = get_f("p2", 0.0f);
+            return fi;
+        }
+
+        /// List image files in a directory, sorted lexicographically.
+        std::vector<std::filesystem::path> list_images_sorted(const std::filesystem::path& dir) {
+            std::vector<std::filesystem::path> files;
+            std::error_code ec;
+            for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+                if (!ec && entry.is_regular_file() && is_image_file(entry.path())) {
+                    files.push_back(entry.path());
+                }
+            }
+            std::sort(files.begin(), files.end());
+            return files;
+        }
+
+        /// Check whether @p j qualifies as a 4D transforms file.
+        /// Conditions: non-empty "frames", all frames have "camera_label",
+        /// and the directory of the first frame's file_path has >1 image file.
+        bool is_4d_transforms(const nlohmann::json& j,
+                               const std::filesystem::path& base_dir) {
+            if (!j.contains("frames") || !j["frames"].is_array()) return false;
+            const auto& frames = j["frames"];
+            if (frames.empty()) return false;
+
+            // All frames must have camera_label
+            for (const auto& f : frames) {
+                if (!f.contains("camera_label") || !f["camera_label"].is_string())
+                    return false;
+            }
+
+            // The first frame's image directory must have more than one image
+            if (!frames[0].contains("file_path") || !frames[0]["file_path"].is_string())
+                return false;
+
+            const auto fp = lfs::core::utf8_to_path(frames[0]["file_path"].get<std::string>());
+            const auto img_dir = (base_dir / fp).parent_path();
+            if (!safe_exists(img_dir) || !safe_is_directory(img_dir)) return false;
+
+            const auto imgs = list_images_sorted(img_dir);
+            return imgs.size() > 1;
+        }
+
+        /// Per-camera data parsed from the "frames" array of a 4D transforms.json.
+        struct ParsedCamera {
+            std::string camera_label;
+            std::filesystem::path img_dir;
+            Tensor R, T;
+            FrameIntrinsics intr;
+        };
+
+        /// Parse the "frames" array, grouping entries by camera_label.
+        /// Returns (ordered labels, label→ParsedCamera map) or an error.
+        Result<std::pair<std::vector<std::string>,
+                         std::unordered_map<std::string, ParsedCamera>>>
+        parse_cameras_from_frames(const nlohmann::json& j,
+                                  const std::filesystem::path& base_dir,
+                                  const std::filesystem::path& transforms_file) {
+            std::vector<std::string> ordered_labels;
+            std::unordered_map<std::string, ParsedCamera> by_label;
+
+            const auto& frames_json = j["frames"];
+            for (size_t fi = 0; fi < frames_json.size(); ++fi) {
+                const auto& jf = frames_json[fi];
+                const std::string label = jf["camera_label"].get<std::string>();
+
+                if (by_label.count(label) != 0)
+                    continue; // additional occurrences of the same label are ignored
+
+                if (!jf.contains("transform_matrix")) {
+                    return make_error(ErrorCode::INVALID_DATASET,
+                                      std::format("frame[{}]: missing 'transform_matrix'", fi),
+                                      transforms_file);
+                }
+                if (!jf.contains("file_path") || !jf["file_path"].is_string()) {
+                    return make_error(ErrorCode::INVALID_DATASET,
+                                      std::format("frame[{}]: missing 'file_path'", fi),
+                                      transforms_file);
+                }
+
+                ParsedCamera pc;
+                pc.camera_label = label;
+                pc.img_dir = (base_dir / lfs::core::utf8_to_path(
+                                  jf["file_path"].get<std::string>())).parent_path();
+                pc.intr = read_intrinsics(jf, j);
+
+                try {
+                    auto [R, T] = c2w_json_to_RT(jf["transform_matrix"]);
+                    pc.R = std::move(R);
+                    pc.T = std::move(T);
+                } catch (const std::exception& e) {
+                    return make_error(ErrorCode::INVALID_DATASET,
+                                      std::format("frame[{}] '{}': bad transform_matrix: {}",
+                                                  fi, label, e.what()),
+                                      transforms_file);
+                }
+
+                ordered_labels.push_back(label);
+                by_label[label] = std::move(pc);
+            }
+
+            return std::pair{std::move(ordered_labels), std::move(by_label)};
+        }
+
+        /// For each camera (in label order), list its image files and validate
+        /// that all cameras have the same count.  Returns cam_images[cam_idx][time_idx].
+        Result<std::vector<std::vector<std::filesystem::path>>>
+        discover_timesteps(const std::vector<std::string>& ordered_labels,
+                           const std::unordered_map<std::string, ParsedCamera>& by_label,
+                           const std::filesystem::path& transforms_file) {
+            std::vector<std::vector<std::filesystem::path>> cam_images;
+            cam_images.reserve(ordered_labels.size());
+            size_t expected_count = 0;
+
+            for (size_t ci = 0; ci < ordered_labels.size(); ++ci) {
+                const auto& pc = by_label.at(ordered_labels[ci]);
+
+                if (!safe_exists(pc.img_dir) || !safe_is_directory(pc.img_dir)) {
+                    return make_error(ErrorCode::MISSING_REQUIRED_FILES,
+                                      std::format("Camera '{}': image directory not found",
+                                                  pc.camera_label),
+                                      pc.img_dir);
+                }
+
+                auto imgs = list_images_sorted(pc.img_dir);
+                if (imgs.empty()) {
+                    return make_error(ErrorCode::MISSING_REQUIRED_FILES,
+                                      std::format("Camera '{}': no image files found",
+                                                  pc.camera_label),
+                                      pc.img_dir);
+                }
+
+                if (ci == 0) {
+                    expected_count = imgs.size();
+                } else if (imgs.size() != expected_count) {
+                    return make_error(ErrorCode::INVALID_DATASET,
+                                      std::format("Camera '{}' has {} time steps but camera '{}' "
+                                                  "has {}; all cameras must match",
+                                                  pc.camera_label, imgs.size(),
+                                                  ordered_labels[0], expected_count),
+                                      transforms_file);
+                }
+
+                cam_images.push_back(std::move(imgs));
+            }
+
+            return cam_images;
+        }
+
+        /// Build one Camera object per entry in @p ordered_labels.
+        std::vector<std::shared_ptr<lfs::core::Camera>>
+        build_cameras(const std::vector<std::string>& ordered_labels,
+                      const std::unordered_map<std::string, ParsedCamera>& by_label) {
+            std::vector<std::shared_ptr<lfs::core::Camera>> cameras;
+            cameras.reserve(ordered_labels.size());
+
+            for (size_t ci = 0; ci < ordered_labels.size(); ++ci) {
+                const auto& pc = by_label.at(ordered_labels[ci]);
+                const auto& intr = pc.intr;
+
+                const bool is_distorted = (intr.k1 != 0.0f) || (intr.k2 != 0.0f) ||
+                                          (intr.k3 != 0.0f) || (intr.p1 != 0.0f) || (intr.p2 != 0.0f);
+                Tensor radial = is_distorted
+                    ? Tensor::from_vector({intr.k1, intr.k2, intr.k3}, {3}, Device::CPU)
+                    : Tensor::empty({0}, Device::CPU);
+                Tensor tangential = is_distorted
+                    ? Tensor::from_vector({intr.p1, intr.p2}, {2}, Device::CPU)
+                    : Tensor::empty({0}, Device::CPU);
+
+                const float cx = intr.cx > 0 ? intr.cx
+                               : (intr.w > 0 ? 0.5f * static_cast<float>(intr.w) : 0.0f);
+                const float cy = intr.cy > 0 ? intr.cy
+                               : (intr.h > 0 ? 0.5f * static_cast<float>(intr.h) : 0.0f);
+
+                cameras.push_back(std::make_shared<lfs::core::Camera>(
+                    pc.R, pc.T,
+                    intr.fl_x, intr.fl_y,
+                    cx, cy,
+                    radial, tangential,
+                    lfs::core::CameraModelType::PINHOLE,
+                    pc.camera_label,
+                    std::filesystem::path{},
+                    std::filesystem::path{},
+                    intr.w, intr.h,
+                    static_cast<int>(ci)));
+            }
+
+            return cameras;
+        }
+
+        /// Build the frame table: result[time_idx][cam_idx] = {image_path, nullopt}.
+        using FrameTable = std::vector<std::vector<
+            std::pair<std::filesystem::path, std::optional<std::filesystem::path>>>>;
+
+        FrameTable build_frame_table(
+            const std::vector<std::vector<std::filesystem::path>>& cam_images) {
+            const size_t num_time_steps = cam_images.empty() ? 0 : cam_images[0].size();
+            const size_t num_cams = cam_images.size();
+
+            FrameTable table(num_time_steps,
+                std::vector<std::pair<std::filesystem::path,
+                                      std::optional<std::filesystem::path>>>(num_cams));
+            for (size_t ti = 0; ti < num_time_steps; ++ti)
+                for (size_t ci = 0; ci < num_cams; ++ci)
+                    table[ti][ci] = {cam_images[ci][ti], std::nullopt};
+            return table;
+        }
+
+        /// Load a 4D dataset from a transforms.json that passes is_4d_transforms().
+        Result<LoadResult> load_4d_from_transforms(
+            const std::filesystem::path& transforms_file,
+            const nlohmann::json& j,
+            const LoadOptions& options) {
+
+            const auto start_time = std::chrono::high_resolution_clock::now();
+            const std::filesystem::path base_dir = transforms_file.parent_path();
+
+            if (options.progress) options.progress(0.0f, "Loading 4D sequence...");
+
+            auto cameras_result = parse_cameras_from_frames(j, base_dir, transforms_file);
+            if (!cameras_result) return std::unexpected(cameras_result.error());
+            auto& [ordered_labels, by_label] = *cameras_result;
+
+            if (ordered_labels.empty())
+                return make_error(ErrorCode::EMPTY_DATASET, "No cameras found", transforms_file);
+
+            if (options.progress) options.progress(20.0f, "Discovering time steps...");
+
+            auto timesteps_result = discover_timesteps(ordered_labels, by_label, transforms_file);
+            if (!timesteps_result) return std::unexpected(timesteps_result.error());
+            auto& cam_images = *timesteps_result;
+
+            if (options.progress) options.progress(50.0f, "Building camera objects...");
+
+            auto cameras = build_cameras(ordered_labels, by_label);
+
+            if (options.progress) options.progress(70.0f, "Assembling frame table...");
+
+            auto frame_table = build_frame_table(cam_images);
+
+            const size_t num_time_steps = cam_images.empty() ? 0 : cam_images[0].size();
+            std::vector<float> timestamps(num_time_steps);
+            for (size_t i = 0; i < num_time_steps; ++i)
+                timestamps[i] = static_cast<float>(i);
+
+            std::vector<std::string> warnings;
+            if (j.contains("fps") && j["fps"].is_number()) {
+                warnings.push_back(
+                    std::format("fps={} found in transforms.json (timestamps are frame indices; "
+                                "apply fps for wall-clock time)",
+                                float(j["fps"])));
+            }
+
+            const auto end_time = std::chrono::high_resolution_clock::now();
+            LOG_INFO("[BlenderLoader-4D] Loaded {} cameras × {} time steps from '{}'",
+                     cameras.size(), num_time_steps, lfs::core::path_to_utf8(transforms_file));
+
+            return LoadResult{
+                .data = Loaded4DDataset{
+                    .cameras = std::move(cameras),
+                    .timestamps = std::move(timestamps),
+                    .frames = std::move(frame_table)},
+                .loader_used = "BlenderLoader-4D",
+                .load_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time),
+                .warnings = std::move(warnings)};
+        }
+
     } // namespace
 
     static std::filesystem::path find_mask_path(const std::filesystem::path& base_path,
@@ -153,6 +513,24 @@ namespace lfs::io {
 
         try {
             LOG_INFO("Loading Blender/NeRF dataset from: {}", lfs::core::path_to_utf8(transforms_file));
+
+            // -----------------------------------------------------------
+            // 4D detection: parse JSON and check for 4D signal before
+            // delegating to the standard 3D path.
+            // -----------------------------------------------------------
+            {
+                std::ifstream jf_stream;
+                if (lfs::core::open_file_for_read(transforms_file, jf_stream)) {
+                    try {
+                        nlohmann::json j = nlohmann::json::parse(jf_stream, nullptr, true, true);
+                        if (is_4d_transforms(j, transforms_file.parent_path())) {
+                            return load_4d_from_transforms(transforms_file, j, options);
+                        }
+                    } catch (...) {
+                        // JSON parse failure – fall through to 3D path which will give a proper error
+                    }
+                }
+            }
 
             // Read transforms and create cameras
             auto [camera_infos, scene_center, train_val_split] = read_transforms_cameras_and_images(transforms_file);
