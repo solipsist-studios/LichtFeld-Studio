@@ -133,6 +133,8 @@ class NodeType(enum.Enum):
 
     KEYFRAME = 12
 
+    TIME_SAMPLED_SPLAT = 13
+
 class MeshInfo:
     @property
     def vertex_count(self) -> int: ...
